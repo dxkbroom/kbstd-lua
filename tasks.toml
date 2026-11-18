@@ -1,0 +1,64 @@
+#:schema https://raw.githubusercontent.com/jdx/mise/refs/heads/main/schema/mise-task.json
+
+[bootstrap]
+run = ["cargo install"]
+
+[clean]
+description = "Clean build artifacts"
+run = "cargo clean"
+
+[build]
+alias = "b"
+usage = """
+arg "<TARGET>" default="luajit" {
+  choices "luajit" "lua51" "lua52" "lua53" "lua54" "lua55"
+}
+"""
+run = "{{ get_env(name='MISE_CARGO_BUILD_COMMAND', default='cargo build') }} --features=$usage_target {{ get_env(name='MISE_CARGO_BUILD_EXTRA_ARGS', default='') }}"
+run_windows = "{{ get_env(name='MISE_CARGO_BUILD_COMMAND', default='cargo build') }} --features=$usage_target {{ get_env(name='MISE_CARGO_BUILD_EXTRA_ARGS', default='') }}"
+description = "Build the project"
+
+[fmt]
+description = "Format TOML, Markdown, Rust and Lua files"
+alias = ["format"]
+run = ["cargo fmt --all -- --check", "rumdl fmt", "tombi format", "luafmt --write --recursive spec/ definitions/"]
+
+[lint]
+description = "Lint TOML, Markdown, Rust and Lua files"
+alias = ["check"]
+usage = """
+arg "<TARGET>" default="luajit" {
+  choices "luajit" "lua51" "lua52" "lua53" "lua54" "lua55"
+}
+"""
+run = ["rumdl check", "tombi check", "cargo check --features=$usage_target", "emmylua_check spec/ definitions/ --warnings-as-errors"]
+
+[render]
+description="Run all render tasks"
+depends=["render:*"]
+
+[test]
+description = "run all tests"
+alias = "t"
+usage = """
+arg "<TARGET>" default="luajit" {
+  choices "luajit" "lua51" "lua52" "lua53" "lua54" "lua55"
+}
+"""
+run = ["mise tasks run test:unit $usage_target"]
+
+["test:unit"]
+description = "run unit tests"
+usage = """
+arg "<TARGET>" default="luajit" {
+  choices "luajit" "lua51" "lua52" "lua53" "lua54" "lua55"
+}
+"""
+run = """
+#!/usr/bin/env bash
+set -xeuo pipefail
+cargo test --features $usage_target
+lua_version="${usage_target#lua}"
+lx test --lua-version=$lua_version --no-luarc
+"""
+env = { CARGO_TERM_COLOR = "always", "RUST_TEST_THREADS" = "1" }

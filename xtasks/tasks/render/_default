@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+#MISE description="Render all generated EmmyLua definitions"
+#MISE depends=["render:emmy-*"]
+set -euo pipefail

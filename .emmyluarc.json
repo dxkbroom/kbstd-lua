@@ -1,0 +1,12 @@
+{
+  "$schema": "https://raw.githubusercontent.com/EmmyLuaLs/emmylua-analyzer-rust/master/emmylua.schema.json",
+  "workspace": {
+    "library": [
+      "./definitions/"
+    ]
+  },
+  "hint": {
+    "paramHint": true,
+    "localHint": true
+  }
+}

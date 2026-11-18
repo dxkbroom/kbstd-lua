@@ -1,0 +1,13 @@
+/luarocks
+/lua
+/lua_modules
+/.luarocks
+
+
+# Added by cargo
+
+/target
+
+# Nix
+
+/result

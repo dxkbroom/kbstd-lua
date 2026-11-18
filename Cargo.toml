@@ -1,0 +1,32 @@
+[package]
+name = "kbstd-lua"
+version = "0.0.1"
+edition = "2024"
+rust-version = "1.95"
+description = "KBroom Lua standard library, things I don't want to write twice in Lua."
+readme = "README.md"
+repository = "https://github.com/dxkbroom/kbstd-lua"
+license = "MIT"
+include = ["/Cargo.toml", "/Cargo.lock", "/LICENSE", "/README.md", "/CHANGELOG.md"]
+
+[lib]
+crate-type = ["cdylib"]
+name = "kbstd"
+path = "src/lualib.rs"
+
+[dependencies]
+mlua = { version = "0.11", features = ["module"] }
+
+[dev-dependencies]
+tempfile = "3"
+
+[features]
+lua51 = ["mlua/lua51"]
+lua52 = ["mlua/lua52"]
+lua53 = ["mlua/lua53"]
+lua54 = ["mlua/lua54"]
+lua55 = ["mlua/lua55"]
+luajit = ["mlua/luajit"]
+
+[lints.rust]
+unsafe_code = "forbid"

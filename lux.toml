@@ -1,0 +1,15 @@
+package = "kbstd"
+version = "0.0.1"
+lua = ">=5.1"
+
+[build]
+type = "rust-mlua"
+
+[build.modules]
+kbstd = "kbstd"
+
+[test_dependencies]
+busted = ">=2.3"
+
+[source]
+url = "https://github.com/dxkbroom/kbstd-lua"

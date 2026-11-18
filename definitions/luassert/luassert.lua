@@ -1,0 +1,925 @@
+---@meta luassert
+
+-- Generated from lunarmodules/luassert master (v1.8.0) by `mise run render:emmy-luassert`. Do not edit by hand.
+-- Lua keywords (true/false/nil/function/not) can't follow a dot, so they're typed
+-- capitalized (assert.True, assert.is.Not). luassert lowercases tokens, so that works at runtime.
+
+-- Assertion signatures ----------------------------------------------------
+
+---@alias luassert.fn.is_true fun(value: any, message?: string): any
+---@alias luassert.fn.is_false fun(value: any, message?: string): any
+---@alias luassert.fn.type fun(value: any, message?: string): any
+---@alias luassert.fn.returned_arguments fun(count: integer, ...: any): any
+---@alias luassert.fn.same fun(expected: any, actual: any, message?: string): any
+---@alias luassert.fn.matches fun(pattern: string, actual: string|number, init?: integer, plain?: boolean, message?: string): any
+---@alias luassert.fn.near fun(expected: number, actual: number, tolerance: number, message?: string): any
+---@alias luassert.fn.equals fun(expected: any, actual: any, message?: string): any
+---@alias luassert.fn.unique fun(list: table, deep?: boolean, message?: string): any
+---@alias luassert.fn.error fun(fn: function, expected_err?: any, message?: string): any
+---@alias luassert.fn.error_matches fun(fn: function, pattern: string, init?: integer, plain?: boolean, message?: string): string?
+---@alias luassert.fn.truthy fun(value: any, message?: string): any
+---@alias luassert.fn.falsy fun(value: any, message?: string): any
+---@alias luassert.fn.returned_with fun(...: any)
+---@alias luassert.fn.called_with fun(...: any)
+---@alias luassert.fn.called fun(times?: integer)
+---@alias luassert.fn.called_n fun(times: integer)
+---@alias luassert.fn.holes fun(length?: integer): integer?
+
+-- Matcher ------------------------------------------------------------------
+
+---@class luassert.matcher
+---@field name string
+---@field mod boolean
+---@field arguments table
+---@operator call(any): boolean
+
+-- Modifiers: plain words, and the ones that take an argument ---------------
+
+---@class luassert.modifiers
+---@field a luassert.chain
+---@field an luassert.chain
+---@field the luassert.chain
+---@field is luassert.chain
+---@field are luassert.chain
+---@field was luassert.chain
+---@field has luassert.chain
+---@field does luassert.chain
+---@field Not luassert.chain  flips polarity (`not` is a keyword)
+---@field no  luassert.chain  flips polarity
+---@field is_not luassert.chain
+---@field are_not luassert.chain
+---@field was_not luassert.chain
+---@field has_no luassert.chain
+---@field does_not luassert.chain
+---@field message fun(msg: string): luassert.chain  sets the failure message for the rest of the chain
+---@field spy  fun(s: luassert.spy|luassert.stub, message?: string): luassert.chain  sets the payload for called*/returned_with
+---@field stub fun(s: luassert.stub, message?: string): luassert.chain
+---@field array fun(arr: table): luassert.chain  sets the array for holes()
+
+-- Assertions (bare names) --------------------------------------------------
+
+---@class luassert.assertions
+---@field True luassert.fn.is_true
+---@field False luassert.fn.is_false
+---@field boolean luassert.fn.type
+---@field number luassert.fn.type
+---@field string luassert.fn.type
+---@field table luassert.fn.type
+---@field Nil luassert.fn.type
+---@field userdata luassert.fn.type
+---@field Function luassert.fn.type
+---@field thread luassert.fn.type
+---@field returned_arguments luassert.fn.returned_arguments
+---@field same luassert.fn.same
+---@field matches luassert.fn.matches
+---@field match luassert.fn.matches
+---@field near luassert.fn.near
+---@field equals luassert.fn.equals
+---@field equal luassert.fn.equals
+---@field unique luassert.fn.unique
+---@field error luassert.fn.error
+---@field errors luassert.fn.error
+---@field error_matches luassert.fn.error_matches
+---@field error_match luassert.fn.error_matches
+---@field matches_error luassert.fn.error_matches
+---@field match_error luassert.fn.error_matches
+---@field truthy luassert.fn.truthy
+---@field falsy luassert.fn.falsy
+---@field returned_with luassert.fn.returned_with
+---@field called_with luassert.fn.called_with
+---@field called luassert.fn.called
+---@field called_at_least luassert.fn.called_n
+---@field called_at_most luassert.fn.called_n
+---@field called_more_than luassert.fn.called_n
+---@field called_less_than luassert.fn.called_n
+---@field holes luassert.fn.holes
+
+-- Compound underscore forms: assert.is_not_nil, assert.has_no_errors, ... ---
+
+---@class luassert.compound
+---@field not_true luassert.fn.is_true
+---@field not_false luassert.fn.is_false
+---@field not_boolean luassert.fn.type
+---@field not_number luassert.fn.type
+---@field not_string luassert.fn.type
+---@field not_table luassert.fn.type
+---@field not_nil luassert.fn.type
+---@field not_userdata luassert.fn.type
+---@field not_function luassert.fn.type
+---@field not_thread luassert.fn.type
+---@field not_returned_arguments luassert.fn.returned_arguments
+---@field not_same luassert.fn.same
+---@field not_matches luassert.fn.matches
+---@field not_match luassert.fn.matches
+---@field not_near luassert.fn.near
+---@field not_equals luassert.fn.equals
+---@field not_equal luassert.fn.equals
+---@field not_unique luassert.fn.unique
+---@field not_error luassert.fn.error
+---@field not_errors luassert.fn.error
+---@field not_error_matches luassert.fn.error_matches
+---@field not_error_match luassert.fn.error_matches
+---@field not_matches_error luassert.fn.error_matches
+---@field not_match_error luassert.fn.error_matches
+---@field not_truthy luassert.fn.truthy
+---@field not_falsy luassert.fn.falsy
+---@field not_returned_with luassert.fn.returned_with
+---@field not_called_with luassert.fn.called_with
+---@field not_called luassert.fn.called
+---@field not_called_at_least luassert.fn.called_n
+---@field not_called_at_most luassert.fn.called_n
+---@field not_called_more_than luassert.fn.called_n
+---@field not_called_less_than luassert.fn.called_n
+---@field not_holes luassert.fn.holes
+---@field no_true luassert.fn.is_true
+---@field no_false luassert.fn.is_false
+---@field no_boolean luassert.fn.type
+---@field no_number luassert.fn.type
+---@field no_string luassert.fn.type
+---@field no_table luassert.fn.type
+---@field no_nil luassert.fn.type
+---@field no_userdata luassert.fn.type
+---@field no_function luassert.fn.type
+---@field no_thread luassert.fn.type
+---@field no_returned_arguments luassert.fn.returned_arguments
+---@field no_same luassert.fn.same
+---@field no_matches luassert.fn.matches
+---@field no_match luassert.fn.matches
+---@field no_near luassert.fn.near
+---@field no_equals luassert.fn.equals
+---@field no_equal luassert.fn.equals
+---@field no_unique luassert.fn.unique
+---@field no_error luassert.fn.error
+---@field no_errors luassert.fn.error
+---@field no_error_matches luassert.fn.error_matches
+---@field no_error_match luassert.fn.error_matches
+---@field no_matches_error luassert.fn.error_matches
+---@field no_match_error luassert.fn.error_matches
+---@field no_truthy luassert.fn.truthy
+---@field no_falsy luassert.fn.falsy
+---@field no_returned_with luassert.fn.returned_with
+---@field no_called_with luassert.fn.called_with
+---@field no_called luassert.fn.called
+---@field no_called_at_least luassert.fn.called_n
+---@field no_called_at_most luassert.fn.called_n
+---@field no_called_more_than luassert.fn.called_n
+---@field no_called_less_than luassert.fn.called_n
+---@field no_holes luassert.fn.holes
+---@field is_true luassert.fn.is_true
+---@field is_false luassert.fn.is_false
+---@field is_boolean luassert.fn.type
+---@field is_number luassert.fn.type
+---@field is_string luassert.fn.type
+---@field is_table luassert.fn.type
+---@field is_nil luassert.fn.type
+---@field is_userdata luassert.fn.type
+---@field is_function luassert.fn.type
+---@field is_thread luassert.fn.type
+---@field is_returned_arguments luassert.fn.returned_arguments
+---@field is_same luassert.fn.same
+---@field is_matches luassert.fn.matches
+---@field is_match luassert.fn.matches
+---@field is_near luassert.fn.near
+---@field is_equals luassert.fn.equals
+---@field is_equal luassert.fn.equals
+---@field is_unique luassert.fn.unique
+---@field is_error luassert.fn.error
+---@field is_errors luassert.fn.error
+---@field is_error_matches luassert.fn.error_matches
+---@field is_error_match luassert.fn.error_matches
+---@field is_matches_error luassert.fn.error_matches
+---@field is_match_error luassert.fn.error_matches
+---@field is_truthy luassert.fn.truthy
+---@field is_falsy luassert.fn.falsy
+---@field is_returned_with luassert.fn.returned_with
+---@field is_called_with luassert.fn.called_with
+---@field is_called luassert.fn.called
+---@field is_called_at_least luassert.fn.called_n
+---@field is_called_at_most luassert.fn.called_n
+---@field is_called_more_than luassert.fn.called_n
+---@field is_called_less_than luassert.fn.called_n
+---@field is_holes luassert.fn.holes
+---@field is_not_true luassert.fn.is_true
+---@field is_not_false luassert.fn.is_false
+---@field is_not_boolean luassert.fn.type
+---@field is_not_number luassert.fn.type
+---@field is_not_string luassert.fn.type
+---@field is_not_table luassert.fn.type
+---@field is_not_nil luassert.fn.type
+---@field is_not_userdata luassert.fn.type
+---@field is_not_function luassert.fn.type
+---@field is_not_thread luassert.fn.type
+---@field is_not_returned_arguments luassert.fn.returned_arguments
+---@field is_not_same luassert.fn.same
+---@field is_not_matches luassert.fn.matches
+---@field is_not_match luassert.fn.matches
+---@field is_not_near luassert.fn.near
+---@field is_not_equals luassert.fn.equals
+---@field is_not_equal luassert.fn.equals
+---@field is_not_unique luassert.fn.unique
+---@field is_not_error luassert.fn.error
+---@field is_not_errors luassert.fn.error
+---@field is_not_error_matches luassert.fn.error_matches
+---@field is_not_error_match luassert.fn.error_matches
+---@field is_not_matches_error luassert.fn.error_matches
+---@field is_not_match_error luassert.fn.error_matches
+---@field is_not_truthy luassert.fn.truthy
+---@field is_not_falsy luassert.fn.falsy
+---@field is_not_returned_with luassert.fn.returned_with
+---@field is_not_called_with luassert.fn.called_with
+---@field is_not_called luassert.fn.called
+---@field is_not_called_at_least luassert.fn.called_n
+---@field is_not_called_at_most luassert.fn.called_n
+---@field is_not_called_more_than luassert.fn.called_n
+---@field is_not_called_less_than luassert.fn.called_n
+---@field is_not_holes luassert.fn.holes
+---@field are_true luassert.fn.is_true
+---@field are_false luassert.fn.is_false
+---@field are_boolean luassert.fn.type
+---@field are_number luassert.fn.type
+---@field are_string luassert.fn.type
+---@field are_table luassert.fn.type
+---@field are_nil luassert.fn.type
+---@field are_userdata luassert.fn.type
+---@field are_function luassert.fn.type
+---@field are_thread luassert.fn.type
+---@field are_returned_arguments luassert.fn.returned_arguments
+---@field are_same luassert.fn.same
+---@field are_matches luassert.fn.matches
+---@field are_match luassert.fn.matches
+---@field are_near luassert.fn.near
+---@field are_equals luassert.fn.equals
+---@field are_equal luassert.fn.equals
+---@field are_unique luassert.fn.unique
+---@field are_error luassert.fn.error
+---@field are_errors luassert.fn.error
+---@field are_error_matches luassert.fn.error_matches
+---@field are_error_match luassert.fn.error_matches
+---@field are_matches_error luassert.fn.error_matches
+---@field are_match_error luassert.fn.error_matches
+---@field are_truthy luassert.fn.truthy
+---@field are_falsy luassert.fn.falsy
+---@field are_returned_with luassert.fn.returned_with
+---@field are_called_with luassert.fn.called_with
+---@field are_called luassert.fn.called
+---@field are_called_at_least luassert.fn.called_n
+---@field are_called_at_most luassert.fn.called_n
+---@field are_called_more_than luassert.fn.called_n
+---@field are_called_less_than luassert.fn.called_n
+---@field are_holes luassert.fn.holes
+---@field are_not_true luassert.fn.is_true
+---@field are_not_false luassert.fn.is_false
+---@field are_not_boolean luassert.fn.type
+---@field are_not_number luassert.fn.type
+---@field are_not_string luassert.fn.type
+---@field are_not_table luassert.fn.type
+---@field are_not_nil luassert.fn.type
+---@field are_not_userdata luassert.fn.type
+---@field are_not_function luassert.fn.type
+---@field are_not_thread luassert.fn.type
+---@field are_not_returned_arguments luassert.fn.returned_arguments
+---@field are_not_same luassert.fn.same
+---@field are_not_matches luassert.fn.matches
+---@field are_not_match luassert.fn.matches
+---@field are_not_near luassert.fn.near
+---@field are_not_equals luassert.fn.equals
+---@field are_not_equal luassert.fn.equals
+---@field are_not_unique luassert.fn.unique
+---@field are_not_error luassert.fn.error
+---@field are_not_errors luassert.fn.error
+---@field are_not_error_matches luassert.fn.error_matches
+---@field are_not_error_match luassert.fn.error_matches
+---@field are_not_matches_error luassert.fn.error_matches
+---@field are_not_match_error luassert.fn.error_matches
+---@field are_not_truthy luassert.fn.truthy
+---@field are_not_falsy luassert.fn.falsy
+---@field are_not_returned_with luassert.fn.returned_with
+---@field are_not_called_with luassert.fn.called_with
+---@field are_not_called luassert.fn.called
+---@field are_not_called_at_least luassert.fn.called_n
+---@field are_not_called_at_most luassert.fn.called_n
+---@field are_not_called_more_than luassert.fn.called_n
+---@field are_not_called_less_than luassert.fn.called_n
+---@field are_not_holes luassert.fn.holes
+---@field was_true luassert.fn.is_true
+---@field was_false luassert.fn.is_false
+---@field was_boolean luassert.fn.type
+---@field was_number luassert.fn.type
+---@field was_string luassert.fn.type
+---@field was_table luassert.fn.type
+---@field was_nil luassert.fn.type
+---@field was_userdata luassert.fn.type
+---@field was_function luassert.fn.type
+---@field was_thread luassert.fn.type
+---@field was_returned_arguments luassert.fn.returned_arguments
+---@field was_same luassert.fn.same
+---@field was_matches luassert.fn.matches
+---@field was_match luassert.fn.matches
+---@field was_near luassert.fn.near
+---@field was_equals luassert.fn.equals
+---@field was_equal luassert.fn.equals
+---@field was_unique luassert.fn.unique
+---@field was_error luassert.fn.error
+---@field was_errors luassert.fn.error
+---@field was_error_matches luassert.fn.error_matches
+---@field was_error_match luassert.fn.error_matches
+---@field was_matches_error luassert.fn.error_matches
+---@field was_match_error luassert.fn.error_matches
+---@field was_truthy luassert.fn.truthy
+---@field was_falsy luassert.fn.falsy
+---@field was_returned_with luassert.fn.returned_with
+---@field was_called_with luassert.fn.called_with
+---@field was_called luassert.fn.called
+---@field was_called_at_least luassert.fn.called_n
+---@field was_called_at_most luassert.fn.called_n
+---@field was_called_more_than luassert.fn.called_n
+---@field was_called_less_than luassert.fn.called_n
+---@field was_holes luassert.fn.holes
+---@field was_not_true luassert.fn.is_true
+---@field was_not_false luassert.fn.is_false
+---@field was_not_boolean luassert.fn.type
+---@field was_not_number luassert.fn.type
+---@field was_not_string luassert.fn.type
+---@field was_not_table luassert.fn.type
+---@field was_not_nil luassert.fn.type
+---@field was_not_userdata luassert.fn.type
+---@field was_not_function luassert.fn.type
+---@field was_not_thread luassert.fn.type
+---@field was_not_returned_arguments luassert.fn.returned_arguments
+---@field was_not_same luassert.fn.same
+---@field was_not_matches luassert.fn.matches
+---@field was_not_match luassert.fn.matches
+---@field was_not_near luassert.fn.near
+---@field was_not_equals luassert.fn.equals
+---@field was_not_equal luassert.fn.equals
+---@field was_not_unique luassert.fn.unique
+---@field was_not_error luassert.fn.error
+---@field was_not_errors luassert.fn.error
+---@field was_not_error_matches luassert.fn.error_matches
+---@field was_not_error_match luassert.fn.error_matches
+---@field was_not_matches_error luassert.fn.error_matches
+---@field was_not_match_error luassert.fn.error_matches
+---@field was_not_truthy luassert.fn.truthy
+---@field was_not_falsy luassert.fn.falsy
+---@field was_not_returned_with luassert.fn.returned_with
+---@field was_not_called_with luassert.fn.called_with
+---@field was_not_called luassert.fn.called
+---@field was_not_called_at_least luassert.fn.called_n
+---@field was_not_called_at_most luassert.fn.called_n
+---@field was_not_called_more_than luassert.fn.called_n
+---@field was_not_called_less_than luassert.fn.called_n
+---@field was_not_holes luassert.fn.holes
+---@field has_true luassert.fn.is_true
+---@field has_false luassert.fn.is_false
+---@field has_boolean luassert.fn.type
+---@field has_number luassert.fn.type
+---@field has_string luassert.fn.type
+---@field has_table luassert.fn.type
+---@field has_nil luassert.fn.type
+---@field has_userdata luassert.fn.type
+---@field has_function luassert.fn.type
+---@field has_thread luassert.fn.type
+---@field has_returned_arguments luassert.fn.returned_arguments
+---@field has_same luassert.fn.same
+---@field has_matches luassert.fn.matches
+---@field has_match luassert.fn.matches
+---@field has_near luassert.fn.near
+---@field has_equals luassert.fn.equals
+---@field has_equal luassert.fn.equals
+---@field has_unique luassert.fn.unique
+---@field has_error luassert.fn.error
+---@field has_errors luassert.fn.error
+---@field has_error_matches luassert.fn.error_matches
+---@field has_error_match luassert.fn.error_matches
+---@field has_matches_error luassert.fn.error_matches
+---@field has_match_error luassert.fn.error_matches
+---@field has_truthy luassert.fn.truthy
+---@field has_falsy luassert.fn.falsy
+---@field has_returned_with luassert.fn.returned_with
+---@field has_called_with luassert.fn.called_with
+---@field has_called luassert.fn.called
+---@field has_called_at_least luassert.fn.called_n
+---@field has_called_at_most luassert.fn.called_n
+---@field has_called_more_than luassert.fn.called_n
+---@field has_called_less_than luassert.fn.called_n
+---@field has_holes luassert.fn.holes
+---@field has_no_true luassert.fn.is_true
+---@field has_no_false luassert.fn.is_false
+---@field has_no_boolean luassert.fn.type
+---@field has_no_number luassert.fn.type
+---@field has_no_string luassert.fn.type
+---@field has_no_table luassert.fn.type
+---@field has_no_nil luassert.fn.type
+---@field has_no_userdata luassert.fn.type
+---@field has_no_function luassert.fn.type
+---@field has_no_thread luassert.fn.type
+---@field has_no_returned_arguments luassert.fn.returned_arguments
+---@field has_no_same luassert.fn.same
+---@field has_no_matches luassert.fn.matches
+---@field has_no_match luassert.fn.matches
+---@field has_no_near luassert.fn.near
+---@field has_no_equals luassert.fn.equals
+---@field has_no_equal luassert.fn.equals
+---@field has_no_unique luassert.fn.unique
+---@field has_no_error luassert.fn.error
+---@field has_no_errors luassert.fn.error
+---@field has_no_error_matches luassert.fn.error_matches
+---@field has_no_error_match luassert.fn.error_matches
+---@field has_no_matches_error luassert.fn.error_matches
+---@field has_no_match_error luassert.fn.error_matches
+---@field has_no_truthy luassert.fn.truthy
+---@field has_no_falsy luassert.fn.falsy
+---@field has_no_returned_with luassert.fn.returned_with
+---@field has_no_called_with luassert.fn.called_with
+---@field has_no_called luassert.fn.called
+---@field has_no_called_at_least luassert.fn.called_n
+---@field has_no_called_at_most luassert.fn.called_n
+---@field has_no_called_more_than luassert.fn.called_n
+---@field has_no_called_less_than luassert.fn.called_n
+---@field has_no_holes luassert.fn.holes
+---@field does_true luassert.fn.is_true
+---@field does_false luassert.fn.is_false
+---@field does_boolean luassert.fn.type
+---@field does_number luassert.fn.type
+---@field does_string luassert.fn.type
+---@field does_table luassert.fn.type
+---@field does_nil luassert.fn.type
+---@field does_userdata luassert.fn.type
+---@field does_function luassert.fn.type
+---@field does_thread luassert.fn.type
+---@field does_returned_arguments luassert.fn.returned_arguments
+---@field does_same luassert.fn.same
+---@field does_matches luassert.fn.matches
+---@field does_match luassert.fn.matches
+---@field does_near luassert.fn.near
+---@field does_equals luassert.fn.equals
+---@field does_equal luassert.fn.equals
+---@field does_unique luassert.fn.unique
+---@field does_error luassert.fn.error
+---@field does_errors luassert.fn.error
+---@field does_error_matches luassert.fn.error_matches
+---@field does_error_match luassert.fn.error_matches
+---@field does_matches_error luassert.fn.error_matches
+---@field does_match_error luassert.fn.error_matches
+---@field does_truthy luassert.fn.truthy
+---@field does_falsy luassert.fn.falsy
+---@field does_returned_with luassert.fn.returned_with
+---@field does_called_with luassert.fn.called_with
+---@field does_called luassert.fn.called
+---@field does_called_at_least luassert.fn.called_n
+---@field does_called_at_most luassert.fn.called_n
+---@field does_called_more_than luassert.fn.called_n
+---@field does_called_less_than luassert.fn.called_n
+---@field does_holes luassert.fn.holes
+---@field does_not_true luassert.fn.is_true
+---@field does_not_false luassert.fn.is_false
+---@field does_not_boolean luassert.fn.type
+---@field does_not_number luassert.fn.type
+---@field does_not_string luassert.fn.type
+---@field does_not_table luassert.fn.type
+---@field does_not_nil luassert.fn.type
+---@field does_not_userdata luassert.fn.type
+---@field does_not_function luassert.fn.type
+---@field does_not_thread luassert.fn.type
+---@field does_not_returned_arguments luassert.fn.returned_arguments
+---@field does_not_same luassert.fn.same
+---@field does_not_matches luassert.fn.matches
+---@field does_not_match luassert.fn.matches
+---@field does_not_near luassert.fn.near
+---@field does_not_equals luassert.fn.equals
+---@field does_not_equal luassert.fn.equals
+---@field does_not_unique luassert.fn.unique
+---@field does_not_error luassert.fn.error
+---@field does_not_errors luassert.fn.error
+---@field does_not_error_matches luassert.fn.error_matches
+---@field does_not_error_match luassert.fn.error_matches
+---@field does_not_matches_error luassert.fn.error_matches
+---@field does_not_match_error luassert.fn.error_matches
+---@field does_not_truthy luassert.fn.truthy
+---@field does_not_falsy luassert.fn.falsy
+---@field does_not_returned_with luassert.fn.returned_with
+---@field does_not_called_with luassert.fn.called_with
+---@field does_not_called luassert.fn.called
+---@field does_not_called_at_least luassert.fn.called_n
+---@field does_not_called_at_most luassert.fn.called_n
+---@field does_not_called_more_than luassert.fn.called_n
+---@field does_not_called_less_than luassert.fn.called_n
+---@field does_not_holes luassert.fn.holes
+
+-- A chain in progress (what every modifier returns) ------------------------
+
+---@class luassert.chain: luassert.modifiers, luassert.assertions, luassert.compound
+
+-- The module ---------------------------------------------------------------
+
+---@class luassert: luassert.chain
+---@overload fun(v: any, message?: any, level?: luassert.level, ...: any): any, any, any, ...
+---@field _COPYRIGHT string
+---@field _DESCRIPTION string
+---@field _VERSION string
+local luassert = {}
+
+---@class luassert.level
+---@field level integer
+
+---@alias luassert.namespace 'modifier'|'assertion'|'matcher'|string
+
+---@return luassert.chain
+function luassert.state() end
+
+---@param nspace luassert.namespace
+---@param name string
+---@param callback fun(state: luassert.chain, arguments: table, level: integer): boolean?, table?
+---@param positive_message? string  say key, used when the chain is positive
+---@param negative_message? string  say key, used when the chain is negated
+function luassert:register(nspace, name, callback, positive_message, negative_message) end
+
+---@param nspace luassert.namespace
+---@param name string
+function luassert:unregister(nspace, name) end
+
+---@param callback fun(value: any, fmtargs?: table): string?
+function luassert:add_formatter(callback) end
+
+---@param fmtr function
+function luassert:remove_formatter(fmtr) end
+
+---@param args table
+---@return table
+function luassert:format(args) end
+
+---@param name string
+---@param value any
+function luassert:set_parameter(name, value) end
+
+---@param name string
+---@return any
+function luassert:get_parameter(name) end
+
+---@param spy luassert.spy
+function luassert:add_spy(spy) end
+
+---@return { revert: fun(self) }
+function luassert:snapshot() end
+
+---@param level integer
+---@return luassert.level
+function luassert:level(level) end
+
+---@param level any
+---@return integer?
+function luassert:get_level(level) end
+
+-- luassert.match -----------------------------------------------------------
+
+---@class luassert.match.chain
+---@field a luassert.match.chain
+---@field an luassert.match.chain
+---@field the luassert.match.chain
+---@field is luassert.match.chain
+---@field are luassert.match.chain
+---@field was luassert.match.chain
+---@field has luassert.match.chain
+---@field does luassert.match.chain
+---@field Not luassert.match.chain
+---@field no  luassert.match.chain
+---@field is_not luassert.match.chain
+---@field are_not luassert.match.chain
+---@field was_not luassert.match.chain
+---@field has_no luassert.match.chain
+---@field does_not luassert.match.chain
+---@field True fun(): luassert.matcher
+---@field False fun(): luassert.matcher
+---@field Nil fun(): luassert.matcher
+---@field boolean fun(): luassert.matcher
+---@field number fun(): luassert.matcher
+---@field string fun(): luassert.matcher
+---@field table fun(): luassert.matcher
+---@field Function fun(): luassert.matcher
+---@field userdata fun(): luassert.matcher
+---@field thread fun(): luassert.matcher
+---@field ref fun(obj: any): luassert.matcher
+---@field same fun(expected: any): luassert.matcher
+---@field matches fun(pattern: string, init?: integer, plain?: boolean): luassert.matcher
+---@field match fun(pattern: string, init?: integer, plain?: boolean): luassert.matcher
+---@field near fun(expected: number, tolerance: number): luassert.matcher
+---@field equals fun(expected: any): luassert.matcher
+---@field equal fun(expected: any): luassert.matcher
+---@field unique fun(deep?: boolean): luassert.matcher
+---@field truthy fun(): luassert.matcher
+---@field falsy fun(): luassert.matcher
+---@field none_of fun(...: luassert.matcher): luassert.matcher
+---@field any_of fun(...: luassert.matcher): luassert.matcher
+---@field all_of fun(...: luassert.matcher): luassert.matcher
+---@field not_true fun(): luassert.matcher
+---@field not_false fun(): luassert.matcher
+---@field not_nil fun(): luassert.matcher
+---@field not_boolean fun(): luassert.matcher
+---@field not_number fun(): luassert.matcher
+---@field not_string fun(): luassert.matcher
+---@field not_table fun(): luassert.matcher
+---@field not_function fun(): luassert.matcher
+---@field not_userdata fun(): luassert.matcher
+---@field not_thread fun(): luassert.matcher
+---@field not_ref fun(obj: any): luassert.matcher
+---@field not_same fun(expected: any): luassert.matcher
+---@field not_matches fun(pattern: string, init?: integer, plain?: boolean): luassert.matcher
+---@field not_match fun(pattern: string, init?: integer, plain?: boolean): luassert.matcher
+---@field not_near fun(expected: number, tolerance: number): luassert.matcher
+---@field not_equals fun(expected: any): luassert.matcher
+---@field not_equal fun(expected: any): luassert.matcher
+---@field not_unique fun(deep?: boolean): luassert.matcher
+---@field not_truthy fun(): luassert.matcher
+---@field not_falsy fun(): luassert.matcher
+---@field not_none_of fun(...: luassert.matcher): luassert.matcher
+---@field not_any_of fun(...: luassert.matcher): luassert.matcher
+---@field not_all_of fun(...: luassert.matcher): luassert.matcher
+---@field no_true fun(): luassert.matcher
+---@field no_false fun(): luassert.matcher
+---@field no_nil fun(): luassert.matcher
+---@field no_boolean fun(): luassert.matcher
+---@field no_number fun(): luassert.matcher
+---@field no_string fun(): luassert.matcher
+---@field no_table fun(): luassert.matcher
+---@field no_function fun(): luassert.matcher
+---@field no_userdata fun(): luassert.matcher
+---@field no_thread fun(): luassert.matcher
+---@field no_ref fun(obj: any): luassert.matcher
+---@field no_same fun(expected: any): luassert.matcher
+---@field no_matches fun(pattern: string, init?: integer, plain?: boolean): luassert.matcher
+---@field no_match fun(pattern: string, init?: integer, plain?: boolean): luassert.matcher
+---@field no_near fun(expected: number, tolerance: number): luassert.matcher
+---@field no_equals fun(expected: any): luassert.matcher
+---@field no_equal fun(expected: any): luassert.matcher
+---@field no_unique fun(deep?: boolean): luassert.matcher
+---@field no_truthy fun(): luassert.matcher
+---@field no_falsy fun(): luassert.matcher
+---@field no_none_of fun(...: luassert.matcher): luassert.matcher
+---@field no_any_of fun(...: luassert.matcher): luassert.matcher
+---@field no_all_of fun(...: luassert.matcher): luassert.matcher
+---@field is_true fun(): luassert.matcher
+---@field is_false fun(): luassert.matcher
+---@field is_nil fun(): luassert.matcher
+---@field is_boolean fun(): luassert.matcher
+---@field is_number fun(): luassert.matcher
+---@field is_string fun(): luassert.matcher
+---@field is_table fun(): luassert.matcher
+---@field is_function fun(): luassert.matcher
+---@field is_userdata fun(): luassert.matcher
+---@field is_thread fun(): luassert.matcher
+---@field is_ref fun(obj: any): luassert.matcher
+---@field is_same fun(expected: any): luassert.matcher
+---@field is_matches fun(pattern: string, init?: integer, plain?: boolean): luassert.matcher
+---@field is_match fun(pattern: string, init?: integer, plain?: boolean): luassert.matcher
+---@field is_near fun(expected: number, tolerance: number): luassert.matcher
+---@field is_equals fun(expected: any): luassert.matcher
+---@field is_equal fun(expected: any): luassert.matcher
+---@field is_unique fun(deep?: boolean): luassert.matcher
+---@field is_truthy fun(): luassert.matcher
+---@field is_falsy fun(): luassert.matcher
+---@field is_none_of fun(...: luassert.matcher): luassert.matcher
+---@field is_any_of fun(...: luassert.matcher): luassert.matcher
+---@field is_all_of fun(...: luassert.matcher): luassert.matcher
+---@field is_not_true fun(): luassert.matcher
+---@field is_not_false fun(): luassert.matcher
+---@field is_not_nil fun(): luassert.matcher
+---@field is_not_boolean fun(): luassert.matcher
+---@field is_not_number fun(): luassert.matcher
+---@field is_not_string fun(): luassert.matcher
+---@field is_not_table fun(): luassert.matcher
+---@field is_not_function fun(): luassert.matcher
+---@field is_not_userdata fun(): luassert.matcher
+---@field is_not_thread fun(): luassert.matcher
+---@field is_not_ref fun(obj: any): luassert.matcher
+---@field is_not_same fun(expected: any): luassert.matcher
+---@field is_not_matches fun(pattern: string, init?: integer, plain?: boolean): luassert.matcher
+---@field is_not_match fun(pattern: string, init?: integer, plain?: boolean): luassert.matcher
+---@field is_not_near fun(expected: number, tolerance: number): luassert.matcher
+---@field is_not_equals fun(expected: any): luassert.matcher
+---@field is_not_equal fun(expected: any): luassert.matcher
+---@field is_not_unique fun(deep?: boolean): luassert.matcher
+---@field is_not_truthy fun(): luassert.matcher
+---@field is_not_falsy fun(): luassert.matcher
+---@field is_not_none_of fun(...: luassert.matcher): luassert.matcher
+---@field is_not_any_of fun(...: luassert.matcher): luassert.matcher
+---@field is_not_all_of fun(...: luassert.matcher): luassert.matcher
+---@field are_true fun(): luassert.matcher
+---@field are_false fun(): luassert.matcher
+---@field are_nil fun(): luassert.matcher
+---@field are_boolean fun(): luassert.matcher
+---@field are_number fun(): luassert.matcher
+---@field are_string fun(): luassert.matcher
+---@field are_table fun(): luassert.matcher
+---@field are_function fun(): luassert.matcher
+---@field are_userdata fun(): luassert.matcher
+---@field are_thread fun(): luassert.matcher
+---@field are_ref fun(obj: any): luassert.matcher
+---@field are_same fun(expected: any): luassert.matcher
+---@field are_matches fun(pattern: string, init?: integer, plain?: boolean): luassert.matcher
+---@field are_match fun(pattern: string, init?: integer, plain?: boolean): luassert.matcher
+---@field are_near fun(expected: number, tolerance: number): luassert.matcher
+---@field are_equals fun(expected: any): luassert.matcher
+---@field are_equal fun(expected: any): luassert.matcher
+---@field are_unique fun(deep?: boolean): luassert.matcher
+---@field are_truthy fun(): luassert.matcher
+---@field are_falsy fun(): luassert.matcher
+---@field are_none_of fun(...: luassert.matcher): luassert.matcher
+---@field are_any_of fun(...: luassert.matcher): luassert.matcher
+---@field are_all_of fun(...: luassert.matcher): luassert.matcher
+---@field are_not_true fun(): luassert.matcher
+---@field are_not_false fun(): luassert.matcher
+---@field are_not_nil fun(): luassert.matcher
+---@field are_not_boolean fun(): luassert.matcher
+---@field are_not_number fun(): luassert.matcher
+---@field are_not_string fun(): luassert.matcher
+---@field are_not_table fun(): luassert.matcher
+---@field are_not_function fun(): luassert.matcher
+---@field are_not_userdata fun(): luassert.matcher
+---@field are_not_thread fun(): luassert.matcher
+---@field are_not_ref fun(obj: any): luassert.matcher
+---@field are_not_same fun(expected: any): luassert.matcher
+---@field are_not_matches fun(pattern: string, init?: integer, plain?: boolean): luassert.matcher
+---@field are_not_match fun(pattern: string, init?: integer, plain?: boolean): luassert.matcher
+---@field are_not_near fun(expected: number, tolerance: number): luassert.matcher
+---@field are_not_equals fun(expected: any): luassert.matcher
+---@field are_not_equal fun(expected: any): luassert.matcher
+---@field are_not_unique fun(deep?: boolean): luassert.matcher
+---@field are_not_truthy fun(): luassert.matcher
+---@field are_not_falsy fun(): luassert.matcher
+---@field are_not_none_of fun(...: luassert.matcher): luassert.matcher
+---@field are_not_any_of fun(...: luassert.matcher): luassert.matcher
+---@field are_not_all_of fun(...: luassert.matcher): luassert.matcher
+---@field was_true fun(): luassert.matcher
+---@field was_false fun(): luassert.matcher
+---@field was_nil fun(): luassert.matcher
+---@field was_boolean fun(): luassert.matcher
+---@field was_number fun(): luassert.matcher
+---@field was_string fun(): luassert.matcher
+---@field was_table fun(): luassert.matcher
+---@field was_function fun(): luassert.matcher
+---@field was_userdata fun(): luassert.matcher
+---@field was_thread fun(): luassert.matcher
+---@field was_ref fun(obj: any): luassert.matcher
+---@field was_same fun(expected: any): luassert.matcher
+---@field was_matches fun(pattern: string, init?: integer, plain?: boolean): luassert.matcher
+---@field was_match fun(pattern: string, init?: integer, plain?: boolean): luassert.matcher
+---@field was_near fun(expected: number, tolerance: number): luassert.matcher
+---@field was_equals fun(expected: any): luassert.matcher
+---@field was_equal fun(expected: any): luassert.matcher
+---@field was_unique fun(deep?: boolean): luassert.matcher
+---@field was_truthy fun(): luassert.matcher
+---@field was_falsy fun(): luassert.matcher
+---@field was_none_of fun(...: luassert.matcher): luassert.matcher
+---@field was_any_of fun(...: luassert.matcher): luassert.matcher
+---@field was_all_of fun(...: luassert.matcher): luassert.matcher
+---@field was_not_true fun(): luassert.matcher
+---@field was_not_false fun(): luassert.matcher
+---@field was_not_nil fun(): luassert.matcher
+---@field was_not_boolean fun(): luassert.matcher
+---@field was_not_number fun(): luassert.matcher
+---@field was_not_string fun(): luassert.matcher
+---@field was_not_table fun(): luassert.matcher
+---@field was_not_function fun(): luassert.matcher
+---@field was_not_userdata fun(): luassert.matcher
+---@field was_not_thread fun(): luassert.matcher
+---@field was_not_ref fun(obj: any): luassert.matcher
+---@field was_not_same fun(expected: any): luassert.matcher
+---@field was_not_matches fun(pattern: string, init?: integer, plain?: boolean): luassert.matcher
+---@field was_not_match fun(pattern: string, init?: integer, plain?: boolean): luassert.matcher
+---@field was_not_near fun(expected: number, tolerance: number): luassert.matcher
+---@field was_not_equals fun(expected: any): luassert.matcher
+---@field was_not_equal fun(expected: any): luassert.matcher
+---@field was_not_unique fun(deep?: boolean): luassert.matcher
+---@field was_not_truthy fun(): luassert.matcher
+---@field was_not_falsy fun(): luassert.matcher
+---@field was_not_none_of fun(...: luassert.matcher): luassert.matcher
+---@field was_not_any_of fun(...: luassert.matcher): luassert.matcher
+---@field was_not_all_of fun(...: luassert.matcher): luassert.matcher
+---@field has_true fun(): luassert.matcher
+---@field has_false fun(): luassert.matcher
+---@field has_nil fun(): luassert.matcher
+---@field has_boolean fun(): luassert.matcher
+---@field has_number fun(): luassert.matcher
+---@field has_string fun(): luassert.matcher
+---@field has_table fun(): luassert.matcher
+---@field has_function fun(): luassert.matcher
+---@field has_userdata fun(): luassert.matcher
+---@field has_thread fun(): luassert.matcher
+---@field has_ref fun(obj: any): luassert.matcher
+---@field has_same fun(expected: any): luassert.matcher
+---@field has_matches fun(pattern: string, init?: integer, plain?: boolean): luassert.matcher
+---@field has_match fun(pattern: string, init?: integer, plain?: boolean): luassert.matcher
+---@field has_near fun(expected: number, tolerance: number): luassert.matcher
+---@field has_equals fun(expected: any): luassert.matcher
+---@field has_equal fun(expected: any): luassert.matcher
+---@field has_unique fun(deep?: boolean): luassert.matcher
+---@field has_truthy fun(): luassert.matcher
+---@field has_falsy fun(): luassert.matcher
+---@field has_none_of fun(...: luassert.matcher): luassert.matcher
+---@field has_any_of fun(...: luassert.matcher): luassert.matcher
+---@field has_all_of fun(...: luassert.matcher): luassert.matcher
+---@field has_no_true fun(): luassert.matcher
+---@field has_no_false fun(): luassert.matcher
+---@field has_no_nil fun(): luassert.matcher
+---@field has_no_boolean fun(): luassert.matcher
+---@field has_no_number fun(): luassert.matcher
+---@field has_no_string fun(): luassert.matcher
+---@field has_no_table fun(): luassert.matcher
+---@field has_no_function fun(): luassert.matcher
+---@field has_no_userdata fun(): luassert.matcher
+---@field has_no_thread fun(): luassert.matcher
+---@field has_no_ref fun(obj: any): luassert.matcher
+---@field has_no_same fun(expected: any): luassert.matcher
+---@field has_no_matches fun(pattern: string, init?: integer, plain?: boolean): luassert.matcher
+---@field has_no_match fun(pattern: string, init?: integer, plain?: boolean): luassert.matcher
+---@field has_no_near fun(expected: number, tolerance: number): luassert.matcher
+---@field has_no_equals fun(expected: any): luassert.matcher
+---@field has_no_equal fun(expected: any): luassert.matcher
+---@field has_no_unique fun(deep?: boolean): luassert.matcher
+---@field has_no_truthy fun(): luassert.matcher
+---@field has_no_falsy fun(): luassert.matcher
+---@field has_no_none_of fun(...: luassert.matcher): luassert.matcher
+---@field has_no_any_of fun(...: luassert.matcher): luassert.matcher
+---@field has_no_all_of fun(...: luassert.matcher): luassert.matcher
+---@field does_true fun(): luassert.matcher
+---@field does_false fun(): luassert.matcher
+---@field does_nil fun(): luassert.matcher
+---@field does_boolean fun(): luassert.matcher
+---@field does_number fun(): luassert.matcher
+---@field does_string fun(): luassert.matcher
+---@field does_table fun(): luassert.matcher
+---@field does_function fun(): luassert.matcher
+---@field does_userdata fun(): luassert.matcher
+---@field does_thread fun(): luassert.matcher
+---@field does_ref fun(obj: any): luassert.matcher
+---@field does_same fun(expected: any): luassert.matcher
+---@field does_matches fun(pattern: string, init?: integer, plain?: boolean): luassert.matcher
+---@field does_match fun(pattern: string, init?: integer, plain?: boolean): luassert.matcher
+---@field does_near fun(expected: number, tolerance: number): luassert.matcher
+---@field does_equals fun(expected: any): luassert.matcher
+---@field does_equal fun(expected: any): luassert.matcher
+---@field does_unique fun(deep?: boolean): luassert.matcher
+---@field does_truthy fun(): luassert.matcher
+---@field does_falsy fun(): luassert.matcher
+---@field does_none_of fun(...: luassert.matcher): luassert.matcher
+---@field does_any_of fun(...: luassert.matcher): luassert.matcher
+---@field does_all_of fun(...: luassert.matcher): luassert.matcher
+---@field does_not_true fun(): luassert.matcher
+---@field does_not_false fun(): luassert.matcher
+---@field does_not_nil fun(): luassert.matcher
+---@field does_not_boolean fun(): luassert.matcher
+---@field does_not_number fun(): luassert.matcher
+---@field does_not_string fun(): luassert.matcher
+---@field does_not_table fun(): luassert.matcher
+---@field does_not_function fun(): luassert.matcher
+---@field does_not_userdata fun(): luassert.matcher
+---@field does_not_thread fun(): luassert.matcher
+---@field does_not_ref fun(obj: any): luassert.matcher
+---@field does_not_same fun(expected: any): luassert.matcher
+---@field does_not_matches fun(pattern: string, init?: integer, plain?: boolean): luassert.matcher
+---@field does_not_match fun(pattern: string, init?: integer, plain?: boolean): luassert.matcher
+---@field does_not_near fun(expected: number, tolerance: number): luassert.matcher
+---@field does_not_equals fun(expected: any): luassert.matcher
+---@field does_not_equal fun(expected: any): luassert.matcher
+---@field does_not_unique fun(deep?: boolean): luassert.matcher
+---@field does_not_truthy fun(): luassert.matcher
+---@field does_not_falsy fun(): luassert.matcher
+---@field does_not_none_of fun(...: luassert.matcher): luassert.matcher
+---@field does_not_any_of fun(...: luassert.matcher): luassert.matcher
+---@field does_not_all_of fun(...: luassert.matcher): luassert.matcher
+
+---@class luassert.match: luassert.match.chain
+---@field _ luassert.matcher  matches anything
+local match = {}
+
+---@return luassert.match.chain
+function match.state() end
+
+---@param object any
+---@return boolean
+function match.is_matcher(object) end
+
+---@param object any
+---@return boolean
+function match.is_ref_matcher(object) end
+
+-- spy / stub (the parts the assertions rely on) ----------------------------
+
+---@class luassert.spy
+---@field calls { refs: any[], vals: any[] }[]
+---@field returnvals any[][]
+---@field callback function
+---@operator call(...): any
+---@field called fun(self, times?: integer, compare?: fun(count: integer, expected: integer): boolean): boolean, integer
+---@field called_with fun(self, args: table): boolean, table
+---@field returned_with fun(self, args: table): boolean, table
+---@field clear fun(self): luassert.spy
+---@field revert fun(self): any
+
+---@class luassert.stub: luassert.spy
+---@field returns fun(...: any): luassert.stub  dot-call: s.returns(1, 2)
+---@field invokes fun(fn: function): luassert.stub
+---@field by_default { returns: fun(...: any): luassert.stub, invokes: fun(fn: function): luassert.stub }
+---@field on_call_with fun(...: any): { returns: fun(...: any): luassert.stub, invokes: fun(fn: function): luassert.stub }
+
+return luassert
