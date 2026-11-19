@@ -20,7 +20,7 @@ luastd = { path = "crates/luastd", version = "0.0.1" }
 luastd_runtime = { path = "crates/luastd_runtime", version = "0.0.1" }
 # Never enable a Lua version, `vendored` or `module` here: only leaf crates pick
 # them (see AGENTS.md).
-mlua = "0.11"
+mlua = "0.12"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
