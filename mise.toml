@@ -5,7 +5,7 @@ tombi = "1.9.8"
 rust = "1.99.0"
 
 [env]
-# TODO: temporary local build of fork branch feat/builtin-busted while we keep
+# TODO: temporary local build of fork branch main-kbroom while we keep
 # modifying it. Move to a remote source later, e.g. the mise `cargo:` backend
 # from https://github.com/dxkbroom/emmylua-analyzer-rust (branch or tag), or
 # fork releases via `github:dxkbroom/emmylua-analyzer-rust`.
