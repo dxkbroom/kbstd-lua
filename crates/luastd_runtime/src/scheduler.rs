@@ -9,8 +9,8 @@
 //!
 //! Suspension points (`delay`, `join`, `send`, `receive`, prompts) race the
 //! current token and report cancellation instead of a value. The Lua prelude
-//! (`async.lua`) turns that into raising the shared cancellation sentinel, so
-//! every error value stays a Lua value and never crosses a Rust frame.
+//! (`async.lua`) turns that into raising the shared cancellation error, which
+//! keeps its identity even through Rust frames (ADR 0006).
 
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, VecDeque};
@@ -417,6 +417,8 @@ struct ChannelState {
     next_seq: Cell<u64>,
     taken: Cell<u64>,
     closed: Cell<bool>,
+    /// `cancel()`d: closed, buffer dropped, senders are cancelled.
+    cancelled: Cell<bool>,
     changed: Notify,
 }
 
@@ -433,16 +435,21 @@ impl Channel {
             next_seq: Cell::new(0),
             taken: Cell::new(0),
             closed: Cell::new(false),
+            cancelled: Cell::new(false),
             changed: Notify::new(),
         }))
     }
 
-    /// `"ok"`, `"closed"` or `"cancelled"`.
+    /// `"ok"`, `"closed"`, `"cancelled"` (the caller was) or
+    /// `"channel_cancelled"` (the channel was).
     async fn send(&self, lua: &Lua, value: Value) -> &'static str {
         let state = &self.0;
         let wait_for_room = async {
             loop {
                 let notified = state.changed.notified();
+                if state.cancelled.get() {
+                    return Some(None);
+                }
                 if state.closed.get() {
                     return None;
                 }
@@ -451,7 +458,7 @@ impl Channel {
                     state.next_seq.set(seq + 1);
                     state.queue.borrow_mut().push_back((seq, value));
                     state.changed.notify_waiters();
-                    return Some(seq);
+                    return Some(Some(seq));
                 }
                 notified.await;
             }
@@ -459,7 +466,8 @@ impl Channel {
         let seq = match cancellable(lua, wait_for_room).await {
             None => return "cancelled",
             Some(None) => return "closed",
-            Some(Some(seq)) => seq,
+            Some(Some(None)) => return "channel_cancelled",
+            Some(Some(Some(seq))) => seq,
         };
         if state.cap > 0 {
             return "ok";
@@ -469,13 +477,17 @@ impl Channel {
             loop {
                 let notified = state.changed.notified();
                 if state.taken.get() > seq {
-                    return;
+                    return true;
+                }
+                if state.cancelled.get() {
+                    return false;
                 }
                 notified.await;
             }
         };
         match cancellable(lua, taken).await {
-            Some(()) => "ok",
+            Some(true) => "ok",
+            Some(false) => "channel_cancelled",
             None => {
                 state.queue.borrow_mut().retain(|(s, _)| *s != seq);
                 state.changed.notify_waiters();
@@ -518,6 +530,13 @@ impl Channel {
 
     fn close(&self) {
         self.0.closed.set(true);
+        self.0.changed.notify_waiters();
+    }
+
+    fn cancel(&self) {
+        self.0.cancelled.set(true);
+        self.0.closed.set(true);
+        self.0.queue.borrow_mut().clear();
         self.0.changed.notify_waiters();
     }
 }
@@ -645,6 +664,17 @@ fn core(lua: &Lua) -> Result<Table> {
         })?,
     )?;
     core.set(
+        "cancel_current",
+        lua.create_function(|lua, ()| {
+            // Never the root: outside any job the error alone unwinds.
+            let node = scheduler(lua)?.current_node(thread_key(lua));
+            if node.kind != Kind::Root {
+                node.token.cancel();
+            }
+            Ok(())
+        })?,
+    )?;
+    core.set(
         "state",
         lua.create_function(|_, ud: AnyUserData| {
             let node = node(&ud)?;
@@ -730,6 +760,13 @@ fn core(lua: &Lua) -> Result<Table> {
         "close",
         lua.create_function(|_, ch: UserDataRef<Channel>| {
             ch.close();
+            Ok(())
+        })?,
+    )?;
+    core.set(
+        "cancel_channel",
+        lua.create_function(|_, ch: UserDataRef<Channel>| {
+            ch.cancel();
             Ok(())
         })?,
     )?;

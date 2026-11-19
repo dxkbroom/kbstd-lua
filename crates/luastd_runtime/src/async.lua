@@ -163,6 +163,22 @@ function Node:await()
     error(new_error("JobCancelled", "the awaited job was cancelled"), 2)
 end
 
+function async.join(job)
+    Node.join(job)
+end
+
+function async.await(deferred)
+    return Node.await(deferred)
+end
+
+function async.await_all(...)
+    local deferreds, values = pack(...), {}
+    for i = 1, deferreds.n do
+        values[i] = (Node.await(deferreds[i]))
+    end
+    return unpack(values, 1, deferreds.n)
+end
+
 function async.launch(body)
     check_fn(body, 1, "launch")
     return wrap(core.spawn(core.current(), "launch", body))
@@ -224,6 +240,10 @@ end
 
 -- Channels.
 
+--- The implementation behind the `luastd.async.Channel` stub.
+---@class luastd.async.ChannelImpl
+---@field _channel  any  core channel userdata
+---@field _producer any? the producer job's handle, for `produce` channels
 local Channel = {}
 Channel.__index = Channel
 
@@ -246,6 +266,11 @@ function Channel:send(value)
     end
     local status = core.send(self._channel, value)
     if status == "cancelled" then raise_cancelled() end
+    if status == "channel_cancelled" then
+        -- The consumer is gone: stop the sender quietly, as a cancellation.
+        core.cancel_current()
+        raise_cancelled()
+    end
     if status == "closed" then
         error(new_error("ChannelClosed", "send on a closed channel"), 2)
     end
@@ -260,6 +285,24 @@ end
 
 function Channel:close()
     core.close(self._channel)
+end
+
+function Channel:cancel()
+    core.cancel_channel(self._channel)
+    if self._producer then core.cancel(self._producer) end
+end
+
+function Channel:each(fn)
+    check_fn(fn, 1, "each")
+    local channel = self._channel
+    async.finally(function ()
+        while true do
+            local status, value = core.receive(channel)
+            if status == "cancelled" then raise_cancelled() end
+            if status ~= "value" then return end
+            if fn(value) == false then return end
+        end
+    end, function () self:cancel() end)
 end
 
 function Channel:is_closed()
@@ -279,7 +322,7 @@ end
 function Channel:debounce(ms)
     check_ms(ms, 1, "debounce")
     local source = self._channel
-    ---@type luastd.async.Channel
+    ---@type luastd.async.ChannelImpl
     local out = async.channel(0)
     async.launch(function ()
         async.finally(function ()
@@ -303,6 +346,16 @@ function Channel:debounce(ms)
         end, function () out:close() end)
     end)
     return out
+end
+
+function async.produce(body, cap)
+    check_fn(body, 1, "produce")
+    local channel = async.channel(cap)
+    local job = async.launch(function (scope)
+        async.finally(function () body(channel, scope) end, function () channel:close() end)
+    end)
+    channel._producer = job._handle
+    return channel
 end
 
 -- Rate limiting.
