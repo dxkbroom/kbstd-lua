@@ -30,7 +30,6 @@ Kotlin's `try/finally`.
 ## Note: one cancellation value
 
 The cancellation error is a single `luastd.Error` table (`kind = "Cancelled"`),
-recognised by identity. mlua turns a table error that crosses a Rust callback
-into a string, so the user-facing `luastd.async` functions are written in Lua
-(`crates/luastd_runtime/src/async.lua`) and raise it themselves; Rust
-primitives only report that cancellation happened.
+recognised by identity. Like every `luastd.Error` it keeps its identity through
+Rust frames (ADR 0006), so a `pcall` around a Rust function that calls back
+into Lua still lets it through.

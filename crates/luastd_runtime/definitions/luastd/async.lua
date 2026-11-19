@@ -36,10 +36,10 @@ local Scope = {}
 ---@return luastd.async.Job
 function Scope:launch(body) end
 
---- Start a child job in this scope that produces values.
+--- Start a child job in this scope that produces a value.
 ---@generic T
 ---@param body fun(scope: luastd.async.Scope): T
----@return luastd.async.Deferred
+---@return luastd.async.Deferred<T>
 function Scope:async(body) end
 
 --- Cancel this scope and its children.
@@ -71,14 +71,15 @@ local Job = {}
 ---@async
 function Job:join() end
 
---- A job that produces values.
----@class luastd.async.Deferred: luastd.async.Job
+--- A job that produces a value of type `T`. The body may return more values;
+--- `await` returns them all, but only the first is typed.
+---@class luastd.async.Deferred<T>: luastd.async.Job
 local Deferred = {}
 
---- Wait for the values. Re-raises the job's error; raises `JobCancelled` when
+--- Wait for the value. Re-raises the job's error; raises `JobCancelled` when
 --- the job was cancelled.
 ---@async
----@return any ...
+---@return T
 function Deferred:await() end
 
 --- Launch `body` as a child of the current scope.
@@ -90,32 +91,54 @@ function Deferred:await() end
 function async.launch(body) end
 
 --- Start `body` as a child of the current scope; collect it with `await`.
----@param body fun(scope: luastd.async.Scope): ...
----@return luastd.async.Deferred
+---@generic T
+---@param body fun(scope: luastd.async.Scope): T
+---@return luastd.async.Deferred<T>
 function async.async(body) end
+
+--- Prefix form of `job:join()`.
+---@async
+---@param job luastd.async.Job
+function async.join(job) end
+
+--- Prefix form of `deferred:await()`: every value the body returned.
+---@async
+---@generic T
+---@param deferred luastd.async.Deferred<T>
+---@return T
+---@return any ...
+function async.await(deferred) end
+
+--- Await each deferred in argument order and return the first value of each,
+--- so there is one result per argument even when a body returns several.
+--- Raises the first failure reached in that order.
+---@async
+---@param ... luastd.async.Deferred
+---@return any ...
+function async.await_all(...) end
 
 --- Run `body` in a new scope and wait for its children. A failing child
 --- cancels the scope; its error is raised here. Returns the body's values.
 ---@async
----@generic T
----@param body fun(scope: luastd.async.Scope): T
----@return T
+---@generic T...
+---@param body fun(scope: luastd.async.Scope): T...
+---@return T...
 function async.scope(body) end
 
 --- Like `scope`, but children fail independently of each other and the scope.
 ---@async
----@generic T
----@param body fun(scope: luastd.async.Scope): T
----@return T
+---@generic T...
+---@param body fun(scope: luastd.async.Scope): T...
+---@return T...
 function async.supervisor_scope(body) end
 
 --- Run `body` in a scope that is cancelled after `ms` milliseconds; raises
 --- `Timeout` (a catchable `luastd.Error`) when it is.
 ---@async
----@generic T
+---@generic T...
 ---@param ms   number
----@param body fun(scope: luastd.async.Scope): T
----@return T
+---@param body fun(scope: luastd.async.Scope): T...
+---@return T...
 function async.with_timeout(ms, body) end
 
 --- Suspend for `ms` milliseconds.
@@ -143,14 +166,23 @@ function async.is_cancellation(err) end
 --- Run `body`, then `cleanup` however `body` ended, including cancellation.
 --- `cleanup` cannot be cancelled. Errors from `body` win over `cleanup`'s.
 ---@async
----@generic T
----@param body    fun(): T
+---@generic T...
+---@param body    fun(): T...
 ---@param cleanup fun()
----@return T
+---@return T...
 function async.finally(body, cleanup) end
 
---- A channel between coroutines; `send` and `receive` suspend.
----@class luastd.async.Channel
+--- A channel between coroutines carrying values of type `T`; `send` and
+--- `receive` suspend. Plain `luastd.async.Channel` carries anything; annotate
+--- the element type where it helps:
+---
+--- ```lua
+--- ---@type luastd.async.Channel<string>
+--- local lines = async.channel(16)
+--- ```
+---
+--- Element types are not checked at runtime.
+---@class luastd.async.Channel<T>
 local Channel = {}
 
 --- A channel with room for `cap` values (default 0: each `send` waits for a
@@ -159,35 +191,61 @@ local Channel = {}
 ---@return luastd.async.Channel
 function async.channel(cap) end
 
---- Send a non-nil value, waiting for room.
+--- Send a non-nil value, waiting for room. On a cancelled channel the sending
+--- coroutine is cancelled quietly: its scope sees no error.
 ---@async
----@param value any
+---@param value T
 function Channel:send(value) end
 
 --- Receive the next value, waiting for one. Values sent before `close` are
 --- still delivered.
 ---@async
----@return any
+---@return T
 function Channel:receive() end
 
 --- Close the channel; waiting receivers see the end of the stream.
 function Channel:close() end
 
---- Whether `close` has been called.
+--- Close the channel, drop buffered values, and cancel pending and future
+--- senders, including the producer job of a `produce` channel. Call it when a
+--- consumer stops early.
+function Channel:cancel() end
+
+--- Whether `close` or `cancel` has been called.
 ---@return boolean
 function Channel:is_closed() end
 
 --- Iterate values until the channel is closed and drained.
+---
+--- Leaving the loop early (`break`, `return`, an error) does **not** cancel
+--- the producer: it waits on its next `send`, and its scope waits for it. Use
+--- `each`, or call `cancel` after the loop.
 ---@async
----@return fun(): any
+---@return fun(): T?
 function Channel:iter() end
+
+--- Call `fn` with each value until the channel is closed and drained, or `fn`
+--- returns `false`. However it ends, including an error or cancellation, the
+--- channel is cancelled, so its producer stops.
+---@async
+---@param fn fun(value: T): boolean?
+function Channel:each(fn) end
 
 --- A channel that emits a value once `ms` milliseconds pass without a newer
 --- one, and the last value when this channel closes. Runs a job in the
 --- current scope until this channel closes.
 ---@param ms number
----@return luastd.async.Channel
+---@return luastd.async.Channel<T>
 function Channel:debounce(ms) end
+
+--- Run `body` as a producer job in the current scope and return its channel.
+--- The channel is closed when `body` ends, and the producer is cancelled when
+--- the consumer calls `cancel` (or `each` ends).
+---@generic T
+---@param body fun(channel: luastd.async.Channel<T>, scope: luastd.async.Scope)
+---@param cap? integer
+---@return luastd.async.Channel<T>
+function async.produce(body, cap) end
 
 --- Wrap `fn` so that only the last call in a burst runs, `ms` milliseconds
 --- after it, as a job in the scope that created the wrapper. A call that has
