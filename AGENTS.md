@@ -96,8 +96,9 @@ gh stack view --json
 
 - Never force-push and never amend or rebase commits that are already pushed;
   add a new commit instead.
-- Edit a lower layer by checking it out, committing there, then
-  `gh stack rebase --upstack`.
+- Edit a lower layer by adding a commit on it, then merge upward
+  (`git merge` into each higher branch, in order) and `git push`; never
+  rewrite pushed branches.
 - Use conventional commit subjects. Keep each layer reviewable on its own and
   green before moving up.
 - PRs are opened under the `dxkbroom` GitHub account.
