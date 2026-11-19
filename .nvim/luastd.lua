@@ -14,7 +14,7 @@ local function lib_path(root)
     return root .. "/target/nvim/release/libluastd_lua." .. ext
 end
 
-local HINT = "run `mise run nvim:build` (or `:Lazy build kbstd-lua`), then restart Neovim"
+local HINT = "run `mise run nvim:build` (or `:Lazy build luastd`), then restart Neovim"
 
 --- Resolve `luastd` and `luastd.*` from this checkout's cdylib. Each module has
 --- its own `luaopen_luastd[_<module>]` entry point in the same library.
@@ -107,7 +107,12 @@ end
 
 ---@param opts { root: string }
 function M.setup(opts)
+    -- once per session: `dofile` returns a fresh module each time
+    if vim.g.luastd_dev_root then
+        return
+    end
     local root = opts.root
+    vim.g.luastd_dev_root = root
     local lib = lib_path(root)
     install_searcher(lib)
     if not vim.uv.fs_stat(lib) then
