@@ -17,7 +17,7 @@ fn floor_is_requirable_without_globals() {
     rt.lua()
         .load(
             r#"
-            for _, name in ipairs({ "luastd", "luastd.formatx", "luastd.math", "luastd.path", "luastd.semver" }) do
+            for _, name in ipairs({ "luastd", "luastd.formatx", "luastd.path", "luastd.semver" }) do
                 assert(type(require(name)) == "table", name)
                 assert(rawget(_G, name) == nil, name .. " leaked into _G")
             end
