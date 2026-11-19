@@ -1,4 +1,4 @@
----@meta
+---@meta luastd.path
 
 --- A parsed UTF-8 path component.
 ---@class luastd.path.Component
@@ -114,7 +114,7 @@ function Path:strip_prefix(prefix) end
 ---@return luastd.path.Component[]
 function Path:components() end
 
---- Path helpers provided by the `kbliblua` Rust host.
+--- Lexical path helpers (pure: never touches the filesystem).
 ---
 --- Wraps the lexical, UTF-8 path operations from the Rust `camino` crate.
 --- Construct with `path.new`. `join` is the string-only module shortcut.
