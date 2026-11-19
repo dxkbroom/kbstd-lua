@@ -4,26 +4,18 @@ rumdl = "0.2.79"
 tombi = "1.9.8"
 rust = "1.99.0"
 
-[tools.emmylua_check]
-version = "0.25.1"
-matching = "emmylua_check"
-rename_exe = "emmylua_check"
-
-[tools.luafmt]
-version = "0.25.1"
-matching = "luafmt"
-rename_exe = "luafmt"
-
-# Both CLIs ship in the same EmmyLua release, so alias them and select the
-# asset per tool. `luafmt` is the parser and emmylua_check the diagnostics CLI.
-[tool_alias]
-emmylua_check = "github:EmmyLuaLs/emmylua-analyzer-rust"
-luafmt = "github:EmmyLuaLs/emmylua-analyzer-rust"
-
 [env]
-_.path = ["./target/debug"]
+# TODO: temporary local build of fork branch feat/builtin-busted while we keep
+# modifying it. Move to a remote source later, e.g. the mise `cargo:` backend
+# from https://github.com/dxkbroom/emmylua-analyzer-rust (branch or tag), or
+# fork releases via `github:dxkbroom/emmylua-analyzer-rust`.
+# Refresh the binaries with `mise run fork:build`.
+_.path = [
+  "{{config_root}}/../emmylua-analyzer-rust/target/release",
+  "./target/debug",
+]
 FPATH = "./completions:{{env.FPATH | default(value='')}}"
-fish_complete_path = "./completions:{{env.fish_complete_path | default(value='')}}"
+# fish_complete_path = "./completions:{{env.fish_complete_path | default(value='')}}"
 
 [task_config]
 includes = ["tasks.toml", "xtasks/tasks"]
