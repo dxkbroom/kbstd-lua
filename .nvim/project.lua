@@ -136,21 +136,89 @@ function M.relative(path)
 end
 
 --- Call `fn(module)` with the current buffer's module, or one picked from a list.
----@param fn fun(module: table)
-function M.with_module(fn)
+---@param fn    fun(module: table)
+---@param title string?
+function M.with_module(fn, title)
     local module = M.locate(vim.api.nvim_buf_get_name(0))
     if module then
         return fn(module)
     end
-    M.pick(fn)
+    M.pick(fn, title)
 end
 
----@param fn fun(module: table)
-function M.pick(fn)
+local function present(module)
+    local n = 0
+    for _, f in ipairs(module.files) do
+        n = n + (f.exists and 1 or 0)
+    end
+    return n
+end
+
+--- Markdown preview: the module's files with their status, then the head of
+--- its definition stub.
+---@param module table
+local function preview_text(module)
+    local lines = { ("# %s  (%s, %d/%d)"):format(module.name, module.crate, present(module), #module.files), "" }
+    for _, f in ipairs(module.files) do
+        lines[#lines + 1] = ("- [%s] %-14s `%s`%s"):format(
+            f.exists and "x" or " ", M.ROLE_LABEL[f.role], M.relative(f.path), f.exists and "" or " (missing)"
+        )
+    end
+    local def = M.files(module, "def")[1]
+    if def and def.exists then
+        local head = vim.fn.readfile(def.path, "", 40)
+        vim.list_extend(lines, { "", "```lua" })
+        vim.list_extend(lines, head)
+        lines[#lines + 1] = "```"
+    end
+    return table.concat(lines, "\n")
+end
+
+--- Pick a module and call `fn` with it: a snacks.nvim picker with a preview
+--- of the module's files when snacks is installed, else `vim.ui.select`.
+---@param fn    fun(module: table)
+---@param title string?
+function M.pick(fn, title)
+    title = title or "luastd modules"
+    local modules = M.modules()
+    local ok, snacks = pcall(require, "snacks")
+    if ok and type(snacks) == "table" and snacks.picker then
+        local items = {}
+        for i, module in ipairs(modules) do
+            items[i] = {
+                idx = i,
+                text = module.name .. " " .. module.crate,
+                module = module,
+                preview = { text = preview_text(module), ft = "markdown", loc = false }
+            }
+        end
+        return snacks.picker.pick({
+            source = "luastd_modules",
+            title = title,
+            items = items,
+            preview = "preview",
+            format = function (item)
+                local module = item.module
+                local n = present(module)
+                return {
+                    { ("%-10s"):format(module.name), "SnacksPickerLabel" },
+                    { ("%-16s"):format(module.crate), "SnacksPickerComment" },
+                    { ("%d/%d"):format(n, #module.files),
+                        n == #module.files and "SnacksPickerComment" or "DiagnosticWarn" }
+                }
+            end,
+            confirm = function (picker, item)
+                picker:close()
+                if item then
+                    vim.schedule(function () fn(item.module) end)
+                end
+            end
+        })
+    end
     vim.ui.select(
-        M.modules(),
+        modules,
         {
-            prompt = "luastd module",
+            prompt = title,
             format_item = function (module)
                 return ("%-8s %s"):format(module.name, module.crate)
             end
@@ -186,7 +254,7 @@ function M.jump(role)
             end
         end
         M.open(target)
-    end)
+    end, "luastd: go to " .. M.ROLE_LABEL[role])
 end
 
 --- A new tab with the module's implementation, definition and spec stacked
@@ -228,7 +296,7 @@ local function explorer()
     local ok, command = pcall(require, "neo-tree.command")
     if not ok then
         vim.notify("luastd: neo-tree unavailable, picking a module instead\n" .. tostring(command), vim.log.levels.INFO)
-        return M.pick(M.layout)
+        return M.pick(M.layout, "luastd: open module")
     end
     local name = vim.api.nvim_buf_get_name(0)
     command.execute({
@@ -246,8 +314,8 @@ function M.keymaps()
     map("<leader>pgi", function () M.jump("impl") end, "[I]mplementation")
     map("<leader>pgd", function () M.jump("def") end, "[D]efinition")
     map("<leader>pgs", function () M.jump("spec") end, "[S]pec")
-    map("<leader>pv", function () M.with_module(M.layout) end, "[V]iew module (impl, def, spec)")
-    map("<leader>pm", function () M.pick(M.layout) end, "pick [M]odule")
+    map("<leader>pv", function () M.with_module(M.layout, "luastd: open module") end, "[V]iew module (impl, def, spec)")
+    map("<leader>pm", function () M.pick(M.layout, "luastd: open module") end, "pick [M]odule")
     local ok, wk = pcall(require, "which-key")
     if ok and wk.add then
         wk.add({
