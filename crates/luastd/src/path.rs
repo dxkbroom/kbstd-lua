@@ -13,6 +13,7 @@ use camino::{Utf8Component, Utf8PathBuf};
 use mlua::prelude::*;
 use mlua::{Table, UserData};
 
+use crate::Module;
 use crate::util::{bad_argument, string_argument};
 
 /// Raised when an extension argument contains a path separator.
@@ -191,12 +192,18 @@ impl UserData for PathLua {
     }
 }
 
-/// Build the `luastd.path` module table.
-pub fn create_path_lib(lua: &Lua) -> LuaResult<Table> {
-    let module = lua.create_table()?;
-    module.set("new", lua.create_function(path_new)?)?;
-    module.set("join", lua.create_function(path_join)?)?;
-    Ok(module)
+/// The `luastd.path` module.
+pub struct Path;
+
+impl Module for Path {
+    const NAME: &'static str = "luastd.path";
+
+    fn create(lua: &Lua) -> LuaResult<Table> {
+        let module = lua.create_table()?;
+        module.set("new", lua.create_function(path_new)?)?;
+        module.set("join", lua.create_function(path_join)?)?;
+        Ok(module)
+    }
 }
 
 /// `path.new(...) -> Path`

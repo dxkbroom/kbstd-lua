@@ -10,7 +10,10 @@ license.workspace = true
 
 [dependencies]
 camino = { workspace = true }
+formatx = { workspace = true }
 mlua = { workspace = true }
+self_cell = { workspace = true }
+semver = { workspace = true }
 
 [features]
 # No default Lua version: the leaf crate picks exactly one. These only forward
