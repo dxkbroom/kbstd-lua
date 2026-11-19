@@ -3,7 +3,7 @@
 -- Neovim asks once to trust this file via `vim.secure`).
 --
 -- Points emmylua_ls and luafmt at our emmylua-analyzer-rust fork build
--- (branch feat/builtin-busted) instead of the user-level Mason install.
+-- (branch main-kbroom) instead of the user-level Mason install.
 -- TODO: drop this once the fork is consumed from a remote source (see mise.toml).
 -- Rebuild the binaries with `mise run fork:build`.
 
