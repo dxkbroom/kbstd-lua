@@ -25,6 +25,22 @@ A module that performs IO (`luastd.fs`, `luastd.env`, `luastd.process`) and can 
 be installed with a `PermissionsContainer`.
 _Avoid_: IO module, unsafe module
 
+**Prompter**:
+The host's async answer to a permission the `PermissionsContainer` has not
+decided yet; its answer is recorded in the container (ADR 0004).
+_Avoid_: Permission dialog, asker
+
+**Env overlay**:
+The runtime's own view of environment variables: `luastd.env.set` and `unset`
+change it, reads fall through to the process environment, and the process
+environment itself is never modified.
+_Avoid_: Fake env, env cache
+
+**Structured error**:
+A table raised by luastd with `kind`, `message` and context fields such as
+`permission` and `target`; `tostring` gives `"<kind>: <message>"`.
+_Avoid_: Error string, exception
+
 ### Async
 
 **Scope**:

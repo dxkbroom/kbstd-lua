@@ -36,7 +36,12 @@ Run `mise run fmt` and `mise run lint` before committing.
   pure modules in `require` layout (`init.lua`, `path.lua`, ...), embedded as
   `luastd::DEFINITIONS`. `luastd.<name>.lua`-style file names make emmylua resolve
   `require("luastd.<name>")` to a builtin of the same name.
+- `crates/luastd_runtime/definitions/luastd/` - stubs for the runtime's
+  modules and error types, chained after the floor's by `annotations::definitions`.
 - `spec/` - busted specs, run by `lx test` against the cdylib.
+- `crates/luastd_runtime/tests/lua/` - busted-shaped specs for runtime modules,
+  run inside a `Runtime` by `tests/common` with `harness.lua` (busted itself
+  needs `io`, which the sandbox removes).
 - `examples/tinyvi/` - small ratatui modal editor exercising the runtime; not published.
 - `xtasks/tasks/` - mise file tasks.
 - `lux.toml`, `luastd-*.rockspec` - Lua packaging; build `luastd_lua` via
