@@ -20,6 +20,7 @@ to `lua55`.
 - `mise run fmt` / `mise run format` - cargo fmt, rumdl fmt, tombi format, luafmt
 - `mise run example` - run `crates/luastd_runtime/examples/hello.rs` (vendored luajit52)
 - `mise run fork:build` - rebuild the local emmylua-analyzer-rust fork
+- `mise run nvim:build` - build the cdylib for Neovim's LuaJIT into `target/nvim`, loaded by `.lazy.lua`
 - `mise run clean` - `cargo clean`
 
 Run `mise run fmt` and `mise run lint` before committing.
@@ -39,6 +40,8 @@ Run `mise run fmt` and `mise run lint` before committing.
 - `spec/` - busted specs, run by `lx test` against the cdylib.
 - `examples/tinyvi/` - small ratatui modal editor exercising the runtime; not published.
 - `xtasks/tasks/` - mise file tasks.
+- `.lazy.lua`, `.nvim/` - Neovim dev setup: the emmylua fork, `require("luastd")`
+  from this checkout, and `:Luastd [module] [example]` (`.nvim/examples.lua`).
 - `lux.toml`, `luastd-*.rockspec` - Lua packaging; build `luastd_lua` via
   `cargo_extra_args = ["-p", "luastd_lua"]`.
 
