@@ -1,5 +1,7 @@
 //! `luastd.Error`: structured errors that survive Rust frames (ADR 0006).
 
+mod common;
+
 use luastd_runtime::errors::live_error_slots;
 use luastd_runtime::mlua::{Function, Lua, Result, Table};
 use luastd_runtime::{LuaError, Runtime};
@@ -25,6 +27,16 @@ fn runtime() -> Runtime {
     lua.globals().set("raise", raise).unwrap();
     lua.globals().set("call", call).unwrap();
     rt
+}
+
+#[test]
+fn error_spec() {
+    let rt = runtime();
+    common::run_spec(
+        &rt,
+        "luastd_error_spec.lua",
+        include_str!("lua/luastd_error_spec.lua"),
+    );
 }
 
 #[test]

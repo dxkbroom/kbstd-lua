@@ -51,7 +51,11 @@ fn runtime(prompt: bool, recorder: &Recorder) -> Runtime {
 fn env_spec() {
     let recorder = Recorder::default();
     let rt = runtime(true, &recorder);
-    common::run_spec(&rt, "env_spec.lua", include_str!("lua/env_spec.lua"));
+    common::run_spec(
+        &rt,
+        "luastd_env_spec.lua",
+        include_str!("lua/luastd_env_spec.lua"),
+    );
     let targets: Vec<_> = recorder
         .0
         .borrow()
