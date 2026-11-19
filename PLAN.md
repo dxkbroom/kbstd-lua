@@ -110,12 +110,13 @@ Bottom to top. Each layer builds, passes `mise run test` and `mise run lint`.
    still fit (`formatx`, `math`, `semver`) with stubs and specs.
    Done: each module has stubs, specs and Rust tests; clippy proves no IO.
 4. **`luastd/runtime`** - `Runtime`, typestate builder, preload installation,
-   sandboxed globals, executor (ADR 0003), `EffectModule`, permissions and the
-   async prompter (ADR 0004), EmmyLua publishing and `.emmyrc.json` merge.
+   sandboxed globals, executor (ADR 0003), `EffectModule`, permissions,
+   EmmyLua publishing and `.emmyrc.json` merge.
    Done: a Rust test embeds the runtime with only the floor and `require`s it;
    `io`/`os.execute` are absent.
-5. **`luastd/env`** - `luastd.env` behind the `env` feature, permission-checked.
-   Done: allowed and denied reads covered by tests.
+5. **`luastd/env`** - `luastd.env` behind the `env` feature, permission-checked,
+   and the async prompter (ADR 0004), moved here from layer 4 because env is its
+   first consumer. Done: allowed, denied and prompted reads covered by tests.
 6. **`luastd/async`** - scope, supervisor scope, Job, Deferred, Channel,
    timeout, delay, debounce, throttle, finally, cancellation-aware `pcall`
    (ADR 0005). Done: cancellation through `pcall`, sibling cancellation and

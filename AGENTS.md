@@ -18,6 +18,7 @@ to `lua55`.
 - `mise run test:unit [target]` - `cargo test`, then `lx test` (busted specs in `spec/`)
 - `mise run lint [target]` / `mise run check` - rumdl, tombi, `cargo clippy`, `emmylua_check`
 - `mise run fmt` / `mise run format` - cargo fmt, rumdl fmt, tombi format, luafmt
+- `mise run example` - run `crates/luastd_runtime/examples/hello.rs` (vendored luajit52)
 - `mise run fork:build` - rebuild the local emmylua-analyzer-rust fork
 - `mise run clean` - `cargo clean`
 
@@ -53,8 +54,11 @@ Run `mise run fmt` and `mise run lint` before committing.
   modules, `EffectModule::create(lua, &PermissionsContainer)` for effect modules.
   `.effect::<Fs>()` only exists on `Builder<WithPermissions>`. Cargo features
   decide what is compiled in; permissions decide what runs.
-- **The runtime owns IO.** It never exposes builtin `io`, `os.execute` or
-  `io.popen`; `package` and `debug` exposure is the host's choice.
+- **The runtime owns IO.** No builtin `io`; `os` keeps only `clock`, `date`,
+  `difftime` and `time`; no `dofile`/`loadfile`/`loadstring`; `load` is
+  text-only. `require` only sees `package.preload` unless the host calls
+  `Builder::package(true)`; `debug` needs the `unsafe` `Builder::debug`.
+  `luastd_runtime/src/sandbox.rs` is the single place that decides this.
 - **`require`, not globals.** Modules are reached as `require("luastd.path")`
   through `package.preload`; nothing is added to `_G`.
 - **`luastd_lua` is not a default member.** It forces mlua's `module` feature,
