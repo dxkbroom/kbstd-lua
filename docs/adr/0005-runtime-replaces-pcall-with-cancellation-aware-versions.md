@@ -26,3 +26,11 @@ Kotlin's `try/finally`.
   intrusion.
 - The cdylib (`luastd_lua`) does not own the Lua state and does not replace
   `pcall`; async there is only as safe as the host makes it.
+
+## Note: one cancellation value
+
+The cancellation error is a single `luastd.Error` table (`kind = "Cancelled"`),
+recognised by identity. mlua turns a table error that crosses a Rust callback
+into a string, so the user-facing `luastd.async` functions are written in Lua
+(`crates/luastd_runtime/src/async.lua`) and raise it themselves; Rust
+primitives only report that cancellation happened.

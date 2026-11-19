@@ -61,6 +61,16 @@ _Avoid_: Task, thread, fiber
 A Job that also produces a value, obtained with `await`.
 _Avoid_: Promise, future
 
+**Root scope**:
+The supervisor scope `Runtime::run` opens around the host's main future; jobs
+launched outside any other scope belong to it.
+_Avoid_: Global scope, main job
+
+**Cancellation point**:
+A suspension, such as `delay`, `join`, `receive` or a permission prompt, where a
+cancelled coroutine receives the cancellation error.
+_Avoid_: Checkpoint, yield point
+
 **Channel**:
 A hot stream between coroutines where `send` and `receive` suspend; values are
 produced whether or not anyone collects them.

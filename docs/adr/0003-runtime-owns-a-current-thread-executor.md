@@ -30,3 +30,11 @@ host's own main loop runs as one more local task on it:
   thread and talks to it over channels.
 - Blocking work (`*_sync`, CPU-heavy calls) uses `spawn_blocking` and hands the
   result back to the Lua thread.
+
+## Note: the root scope
+
+The root scope is a supervisor: a failing top-level job is reported on stderr
+and does not cancel its siblings. Like `runBlocking`, `run` waits for root jobs
+before returning; a host that wants to stop them calls
+`luastd_runtime::cancel_jobs(&lua)` first. If the main future fails, root jobs
+are cancelled and awaited.
