@@ -359,7 +359,6 @@ describe("luastd.async", function ()
         it("delivers buffered values in order and ends iteration on close", function ()
             local ch = async.channel(4)
             for i = 1, 3 do
-                ---@diagnostic disable-next-line: param-type-mismatch -- TODO(emmylua-fork): Channel<T> param T not substituted
                 ch:send(i)
             end
             ch:close()
@@ -376,7 +375,6 @@ describe("luastd.async", function ()
             async.scope(function ()
                 local ch = async.channel()
                 async.launch(function ()
-                    ---@diagnostic disable-next-line: param-type-mismatch -- TODO(emmylua-fork): Channel<T> param T not substituted
                     ch:send("x")
                     table.insert(log, "sent")
                 end)
@@ -394,7 +392,6 @@ describe("luastd.async", function ()
                 local ch = async.channel(1)
                 async.launch(function ()
                     for i = 1, 10 do
-                        ---@diagnostic disable-next-line: param-type-mismatch -- TODO(emmylua-fork): Channel<T> param T not substituted
                         ch:send(i)
                     end
                     ch:close()
@@ -410,7 +407,6 @@ describe("luastd.async", function ()
             local ch = async.channel(1)
             ch:close()
             assert.is_equal("ChannelClosed", error_of(function () ch:receive() end).kind)
-            ---@diagnostic disable-next-line: param-type-mismatch -- TODO(emmylua-fork): Channel<T> param T not substituted
             assert.is_equal("ChannelClosed", error_of(function () ch:send(1) end).kind)
             ---@diagnostic disable-next-line: param-type-mismatch
             assert.is_equal("InvalidArgument", error_of(function () async.channel(1):send(nil) end).kind)
@@ -433,14 +429,10 @@ describe("luastd.async", function ()
                 local ch = async.channel(8)
                 local quiet = ch:debounce(20)
                 async.launch(function ()
-                    ---@diagnostic disable-next-line: param-type-mismatch -- TODO(emmylua-fork): Channel<T> param T not substituted
                     ch:send(1)
-                    ---@diagnostic disable-next-line: param-type-mismatch -- TODO(emmylua-fork): Channel<T> param T not substituted
                     ch:send(2)
                     async.delay(50)
-                    ---@diagnostic disable-next-line: param-type-mismatch -- TODO(emmylua-fork): Channel<T> param T not substituted
                     ch:send(3)
-                    ---@diagnostic disable-next-line: param-type-mismatch -- TODO(emmylua-fork): Channel<T> param T not substituted
                     ch:send(4)
                     ch:close()
                 end)
@@ -459,7 +451,6 @@ describe("luastd.async", function ()
             async.scope(function ()
                 local ch = async.channel()
                 job = async.launch(function ()
-                    ---@diagnostic disable-next-line: param-type-mismatch -- TODO(emmylua-fork): Channel<T> param T not substituted
                     ch:send(1) -- waits for a receiver that never comes
                     sent_after = true
                 end)
@@ -475,7 +466,6 @@ describe("luastd.async", function ()
             async.scope(function ()
                 local ch = async.channel(4)
                 ch:cancel()
-                ---@diagnostic disable-next-line: param-type-mismatch -- TODO(emmylua-fork): Channel<T> param T not substituted
                 job = async.launch(function () ch:send(1) end)
             end)
             assert.is_true(job:is_cancelled())
@@ -483,9 +473,7 @@ describe("luastd.async", function ()
 
         it("cancel drops buffered values and ends iteration", function ()
             local ch = async.channel(4)
-            ---@diagnostic disable-next-line: param-type-mismatch -- TODO(emmylua-fork): Channel<T> param T not substituted
             ch:send(1)
-            ---@diagnostic disable-next-line: param-type-mismatch -- TODO(emmylua-fork): Channel<T> param T not substituted
             ch:send(2)
             ch:cancel()
             assert.is_true(ch:is_closed())
@@ -503,7 +491,6 @@ describe("luastd.async", function ()
             async.scope(function ()
                 local ch = async.produce(function (out)
                     for i = 1, 3 do
-                        ---@diagnostic disable-next-line: param-type-mismatch -- TODO(emmylua-fork): Channel<T> param T not substituted
                         out:send(i)
                     end
                 end)
@@ -520,7 +507,6 @@ describe("luastd.async", function ()
                 local ch = async.produce(function (out, scope)
                     assert.is_true(scope:is_active())
                     for i = 1, 3 do
-                        ---@diagnostic disable-next-line: param-type-mismatch -- TODO(emmylua-fork): Channel<T> param T not substituted
                         out:send(i)
                         sent = i
                     end
@@ -539,7 +525,6 @@ describe("luastd.async", function ()
                         local i = 0
                         while true do
                             i = i + 1
-                            ---@diagnostic disable-next-line: param-type-mismatch -- TODO(emmylua-fork): Channel<T> param T not substituted
                             out:send(i)
                         end
                     end, function () cleaned = true end)
@@ -554,7 +539,6 @@ describe("luastd.async", function ()
             local err = error_of(function ()
                 async.scope(function ()
                     local ch = async.produce(function (out)
-                        ---@diagnostic disable-next-line: param-type-mismatch -- TODO(emmylua-fork): Channel<T> param T not substituted
                         out:send(1)
                         error({ kind = "ProducerFailed" })
                     end)
@@ -571,7 +555,6 @@ describe("luastd.async", function ()
                 local i = 0
                 while true do
                     i = i + 1
-                    ---@diagnostic disable-next-line: param-type-mismatch -- TODO(emmylua-fork): Channel<T> param T not substituted
                     out:send(i)
                 end
             end)
@@ -624,7 +607,6 @@ describe("luastd.async", function ()
         it("runs to the end of a closed channel", function ()
             local ch, got = async.channel(3), {}
             for i = 1, 3 do
-                ---@diagnostic disable-next-line: param-type-mismatch -- TODO(emmylua-fork): Channel<T> param T not substituted
                 ch:send(i)
             end
             ch:close()

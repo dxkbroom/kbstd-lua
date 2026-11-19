@@ -36,10 +36,10 @@ local Scope = {}
 ---@return luastd.async.Job
 function Scope:launch(body) end
 
---- Start a child job in this scope that produces a value.
----@generic T
----@param body fun(scope: luastd.async.Scope): T
----@return luastd.async.Deferred<T>
+--- Start a child job in this scope that produces values.
+---@generic T...
+---@param body fun(scope: luastd.async.Scope): T...
+---@return luastd.async.Deferred<T...>
 function Scope:async(body) end
 
 --- Cancel this scope and its children.
@@ -71,15 +71,15 @@ local Job = {}
 ---@async
 function Job:join() end
 
---- A job that produces a value of type `T`. The body may return more values;
---- `await` returns them all, but only the first is typed.
----@class luastd.async.Deferred<T>: luastd.async.Job
+--- A job that produces the values `T...`, the body's return values; `await`
+--- returns them all.
+---@class luastd.async.Deferred<T...>: luastd.async.Job
 local Deferred = {}
 
 --- Wait for the value. Re-raises the job's error; raises `JobCancelled` when
 --- the job was cancelled.
 ---@async
----@return T
+---@return T...
 function Deferred:await() end
 
 --- Launch `body` as a child of the current scope.
@@ -91,9 +91,9 @@ function Deferred:await() end
 function async.launch(body) end
 
 --- Start `body` as a child of the current scope; collect it with `await`.
----@generic T
----@param body fun(scope: luastd.async.Scope): T
----@return luastd.async.Deferred<T>
+---@generic T...
+---@param body fun(scope: luastd.async.Scope): T...
+---@return luastd.async.Deferred<T...>
 function async.async(body) end
 
 --- Prefix form of `job:join()`.
@@ -103,10 +103,9 @@ function async.join(job) end
 
 --- Prefix form of `deferred:await()`: every value the body returned.
 ---@async
----@generic T
----@param deferred luastd.async.Deferred<T>
----@return T
----@return any ...
+---@generic T...
+---@param deferred luastd.async.Deferred<T...>
+---@return T...
 function async.await(deferred) end
 
 --- Await each deferred in argument order and return the first value of each,
@@ -182,7 +181,7 @@ function async.finally(body, cleanup) end
 --- ```
 ---
 --- Element types are not checked at runtime.
----@class luastd.async.Channel<T>
+---@class luastd.async.Channel<T = any>
 local Channel = {}
 
 --- A channel with room for `cap` values (default 0: each `send` waits for a
@@ -242,7 +241,7 @@ function Channel:debounce(ms) end
 --- The channel is closed when `body` ends, and the producer is cancelled when
 --- the consumer calls `cancel` (or `each` ends).
 ---@generic T
----@param body fun(channel: luastd.async.Channel<T>, scope: luastd.async.Scope)
+---@param body async fun(channel: luastd.async.Channel<T>, scope: luastd.async.Scope)
 ---@param cap? integer
 ---@return luastd.async.Channel<T>
 function async.produce(body, cap) end
