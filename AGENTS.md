@@ -88,6 +88,10 @@ Run `mise run fmt` and `mise run lint` before committing.
 - **Async is the blessed path.** Effect functions are `---@async` and raise
   structured errors; blocking variants are named `*_sync`; `try_*` variants
   return `ok, value | err` and are annotated with `---@return_overload`.
+- **One canonical form per operation** (ADR 0007). Add another spelling only
+  when it composes differently (prefix form, explicit receiver, `*_sync` or
+  `try_*`, one-shot helper, operator); stubs mark the canonical form and
+  cross-link the other.
 - **luastd's own Lua is plain 5.1 + LuaJIT.** Stubs, specs and helpers must not
   rely on 5.2-compat additions, so they run on a Neovim-style `luajit`.
 

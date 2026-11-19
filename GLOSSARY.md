@@ -82,6 +82,18 @@ A cold stream that runs its producer only when collected, with operators such as
 `map`, `filter` and `collect`. Not built yet; tracked in [#1](https://github.com/dxkbroom/luastd/issues/1).
 _Avoid_: Observable, stream, iterator
 
+### API
+
+**Canonical form**:
+The one spelling of an operation that docs and examples use; any other form must
+compose differently (ADR 0007).
+_Avoid_: Preferred alias, main name
+
+**Prefix form**:
+A module function that does what a method does, taking the receiver first, such
+as `async.await(d)` for `d:await()`, so it can be passed as a value.
+_Avoid_: Static form, free function
+
 ### tinyvi example
 
 **Plugin**:
