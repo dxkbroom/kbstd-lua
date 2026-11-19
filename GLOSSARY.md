@@ -37,8 +37,9 @@ environment itself is never modified.
 _Avoid_: Fake env, env cache
 
 **Structured error**:
-A table raised by luastd with `kind`, `message` and context fields such as
-`permission` and `target`; `tostring` gives `"<kind>: <message>"`.
+A `luastd.Error` table raised by luastd with `kind`, `message`, an optional
+`cause` and context fields such as `permission` and `target`; `tostring` gives
+`"<kind>: <message>"`. It keeps its identity through Rust frames (ADR 0006).
 _Avoid_: Error string, exception
 
 ### Async

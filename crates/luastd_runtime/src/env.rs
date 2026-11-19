@@ -15,10 +15,10 @@ use std::collections::{BTreeMap, HashMap};
 use std::rc::Rc;
 
 use deno_permissions::PermissionsContainer;
-use mlua::{Function, Lua, MultiValue, Result, Table, Value};
+use mlua::{Lua, MultiValue, Result, Table, Value};
 
 use crate::EffectModule;
-use crate::errors::{LuaErrorTable, Outcome, outcome_into_lua, raising};
+use crate::errors::LuaError;
 use crate::prompt::{EnvDescriptor, check, check_now};
 
 /// Variables set (`Some`) or unset (`None`) by Lua in this runtime.
@@ -88,32 +88,23 @@ impl EffectModule for Env {
         let module = lua.create_table()?;
         for (op, name) in Op::ALL {
             let (permissions_async, overlay_async) = (permissions.clone(), overlay.clone());
-            let raw = lua.create_async_function(move |lua, args: MultiValue| {
+            let get = lua.create_async_function(move |lua, args: MultiValue| {
                 let (permissions, overlay) = (permissions_async.clone(), overlay_async.clone());
                 async move {
-                    let outcome = match parse(op, name, &args) {
-                        Ok(call) => {
-                            match check(&lua, &permissions, EnvDescriptor(call.var())).await {
-                                Ok(()) => run(&lua, &overlay, call),
-                                Err(error) => Err(error),
-                            }
-                        }
-                        Err(error) => Err(error),
-                    };
-                    outcome_into_lua(&lua, outcome)
+                    let call = parse(op, name, &args)?;
+                    check(&lua, &permissions, EnvDescriptor(call.var())).await?;
+                    run(&lua, &overlay, call)
                 }
             })?;
-            module.set(name, raising(lua, raw)?)?;
+            module.set(name, get)?;
 
             let (permissions, overlay) = (permissions.clone(), overlay.clone());
-            let raw_sync: Function = lua.create_function(move |lua, args: MultiValue| {
-                let outcome = parse(op, name, &args).and_then(|call| {
-                    check_now(&permissions, EnvDescriptor(call.var()))?;
-                    run(lua, &overlay, call)
-                });
-                outcome_into_lua(lua, outcome)
+            let get_sync = lua.create_function(move |lua, args: MultiValue| {
+                let call = parse(op, name, &args)?;
+                check_now(&permissions, EnvDescriptor(call.var()))?;
+                run(lua, &overlay, call)
             })?;
-            module.set(format!("{name}_sync"), raising(lua, raw_sync)?)?;
+            module.set(format!("{name}_sync"), get_sync)?;
         }
         Ok(module)
     }
@@ -138,8 +129,8 @@ impl Call {
     }
 }
 
-fn parse(op: Op, function: &str, args: &MultiValue) -> Outcome<Call> {
-    let string = |index: usize, what: &str| -> Outcome<String> {
+fn parse(op: Op, function: &str, args: &MultiValue) -> std::result::Result<Call, LuaError> {
+    let string = |index: usize, what: &str| -> std::result::Result<String, LuaError> {
         match args.get(index - 1) {
             Some(Value::String(text)) => text
                 .to_str()
@@ -148,7 +139,7 @@ fn parse(op: Op, function: &str, args: &MultiValue) -> Outcome<Call> {
             _ => Err(bad_argument(index, what, function, "string expected")),
         }
     };
-    let name = |index| -> Outcome<String> {
+    let name = |index| -> std::result::Result<String, LuaError> {
         let name = string(index, "name")?;
         if name.is_empty() || name.contains(['=', '\0']) {
             return Err(bad_argument(
@@ -181,17 +172,17 @@ fn parse(op: Op, function: &str, args: &MultiValue) -> Outcome<Call> {
     })
 }
 
-fn bad_argument(index: usize, name: &str, function: &str, expected: &str) -> LuaErrorTable {
-    LuaErrorTable::new(
+fn bad_argument(index: usize, name: &str, function: &str, expected: &str) -> LuaError {
+    LuaError::new(
         "InvalidArgument",
         format!("bad argument #{index} '{name}' to '{function}' ({expected})"),
     )
 }
 
-fn run(lua: &Lua, overlay: &EnvOverlay, call: Call) -> Outcome<Value> {
-    let value = match call {
+fn run(lua: &Lua, overlay: &EnvOverlay, call: Call) -> Result<Value> {
+    Ok(match call {
         Call::Get(name) => match overlay.get(&name) {
-            Some(value) => Value::String(lua.create_string(value).map_err(internal)?),
+            Some(value) => Value::String(lua.create_string(value)?),
             None => Value::Nil,
         },
         Call::Has(name) => Value::Boolean(overlay.get(&name).is_some()),
@@ -203,11 +194,6 @@ fn run(lua: &Lua, overlay: &EnvOverlay, call: Call) -> Outcome<Value> {
             overlay.set(name, None);
             Value::Nil
         }
-        Call::Vars => Value::Table(lua.create_table_from(overlay.vars()).map_err(internal)?),
-    };
-    Ok(value)
-}
-
-fn internal(error: mlua::Error) -> LuaErrorTable {
-    LuaErrorTable::new("Internal", error.to_string())
+        Call::Vars => Value::Table(lua.create_table_from(overlay.vars())?),
+    })
 }

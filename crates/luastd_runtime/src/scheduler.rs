@@ -540,9 +540,7 @@ fn core(lua: &Lua) -> Result<Table> {
     core.set(
         "new_error",
         lua.create_function(|lua, (kind, message): (String, String)| {
-            let table = crate::errors::LuaErrorTable::new("", message).into_table(lua)?;
-            table.set("kind", kind)?;
-            Ok(table)
+            crate::errors::LuaError::new(kind, message).table(lua)
         })?,
     )?;
     core.set(

@@ -77,6 +77,8 @@ Run `mise run fmt` and `mise run lint` before committing.
   `LocalSet`; the host loop runs inside `rt.run`.
 - **Prompts never block the Lua thread** (ADR 0004).
 - **Cancellation is not catchable by `pcall`** (ADR 0005).
+- **Errors are `luastd.Error` tables** that keep their identity through Rust
+  frames (ADR 0006); raise from Rust with `Err(LuaError::new(..).into())`.
 - **Async is the blessed path.** Effect functions are `---@async` and raise
   structured errors; blocking variants are named `*_sync`; `try_*` variants
   return `ok, value | err` and are annotated with `---@return_overload`.
