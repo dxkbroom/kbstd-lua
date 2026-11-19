@@ -14,5 +14,8 @@
   "hint": {
     "paramHint": true,
     "localHint": true
+  },
+  "test": {
+    "framework": "busted"
   }
 }
