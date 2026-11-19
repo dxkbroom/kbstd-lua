@@ -70,7 +70,32 @@ local Luastd = {
     end,
     config = function ()
         dofile(root .. "/.nvim/luastd.lua").setup({ root = root })
+        require("luastd_dev.project").keymaps()
     end,
 }
 
-return { Luastd }
+-- `.nvim/` modules, required by name (neo-tree loads its source with `require`).
+for _, name in ipairs({ "project", "neotree" }) do
+    package.preload["luastd_dev." .. name] = function ()
+        return assert(loadfile(root .. "/.nvim/" .. name .. ".lua"))(root)
+    end
+end
+
+-- Module navigation under <leader>p (`.nvim/project.lua`): <leader>pe explorer,
+-- <leader>pgi/pgd/pgs implementation/definition/spec of the current module,
+-- <leader>pv the three in a new tab, <leader>pm pick a module. The explorer is
+-- the neo-tree source `luastd` (`.nvim/neotree.lua`), added only when the user
+-- config already has neo-tree (`optional`).
+---@type LazyPluginSpec
+local NeoTree = {
+    "nvim-neo-tree/neo-tree.nvim",
+    optional = true,
+    opts = function (_, opts)
+        opts.sources = opts.sources or { "filesystem", "buffers", "git_status" }
+        if not vim.tbl_contains(opts.sources, "luastd_dev.neotree") then
+            table.insert(opts.sources, "luastd_dev.neotree")
+        end
+    end,
+}
+
+return { Luastd, NeoTree }
