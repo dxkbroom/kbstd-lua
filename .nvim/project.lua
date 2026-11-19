@@ -9,8 +9,8 @@
 -- - implementation: `crates/<crate>/src/<m>.rs`, `<m>s.rs`, `<m>/mod.rs`, then
 --   `<m>.lua` (a Lua half); `lib.rs` for the root module; `EXTRA_IMPL` adds
 --   files whose names do not follow the module (async's core is `scheduler.rs`)
--- - spec: `luastd_<m>_spec.lua` (`luastd_spec.lua` for the root), or the older
---   `<m>_spec.lua`, in `spec/` or `crates/<crate>/tests/lua/`
+-- - spec: `luastd_<m>_spec.lua` (`luastd_spec.lua` for the root), in `spec/`
+--   or `crates/<crate>/tests/lua/`
 --
 -- A file that does not exist yet gets the canonical path, so it can be created.
 
@@ -70,9 +70,8 @@ local function spec_file(crate_dir, name)
     local canonical = name == "luastd" and "luastd_spec.lua" or ("luastd_" .. name .. "_spec.lua")
     local dirs = { crate_dir .. "/tests/lua/", root .. "/spec/" }
     for _, dir in ipairs(dirs) do
-        local path = first_existing({ dir .. canonical, dir .. name .. "_spec.lua" })
-        if path then
-            return file("spec", path)
+        if exists(dir .. canonical) then
+            return file("spec", dir .. canonical)
         end
     end
     -- new specs go next to the crate's runtime specs, else into the busted `spec/`
