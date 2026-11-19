@@ -138,3 +138,42 @@ fn set_never_touches_the_process() {
         .unwrap();
     assert_eq!(seen, "1");
 }
+
+/// A host that never answers, like a modal the user leaves open.
+struct Never;
+
+impl Prompter for Never {
+    fn prompt(&self, _: PromptRequest) -> Pin<Box<dyn Future<Output = PromptDecision>>> {
+        Box::pin(std::future::pending())
+    }
+}
+
+#[test]
+fn a_pending_prompt_is_a_cancellation_point() {
+    let rt = Runtime::builder()
+        .permissions(permissions::from_options(&options(true)).unwrap())
+        .prompter(Never)
+        .effect::<Env>()
+        .build()
+        .unwrap();
+    let (kind, still_undecided): (String, bool) = rt
+        .run(async |lua| {
+            lua.load(
+                r#"
+                local async, env = require("luastd.async"), require("luastd.env")
+                local ok, err = pcall(async.with_timeout, 10, function () return env.get("HOME") end)
+                assert(not ok)
+                local _, sync_err = pcall(env.get_sync, "HOME")
+                return err.kind, sync_err.message:find("use the async variant", 1, true) ~= nil
+                "#,
+            )
+            .eval_async()
+            .await
+        })
+        .unwrap();
+    assert_eq!(kind, "Timeout");
+    assert!(
+        still_undecided,
+        "an abandoned prompt must not record a decision"
+    );
+}

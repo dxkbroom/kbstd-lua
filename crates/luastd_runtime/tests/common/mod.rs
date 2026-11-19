@@ -21,5 +21,6 @@ pub fn run_spec(rt: &Runtime, name: &str, source: &str) -> usize {
         .unwrap_or_else(|error| panic!("{name}: {error}"));
     assert!(failures.is_empty(), "{name}:\n{}", failures.join("\n"));
     assert!(passed > 0, "{name}: no tests ran");
+    eprintln!("{name}: {passed} passed");
     passed
 }
