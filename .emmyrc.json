@@ -5,7 +5,7 @@
       "./spec"
     ],
     "library": [
-      "./definitions/"
+      "./crates/luastd/definitions/"
     ],
     "ignoreDir": [
       ".lux"

@@ -41,6 +41,34 @@ pub const FLOOR: &[(&str, Loader)] = &[
     (Semver::NAME, Semver::create),
 ];
 
+/// EmmyLua `---@meta` stubs for every floor module, as
+/// `(path relative to a library root, contents)`.
+///
+/// Paths follow `require` layout, so a directory holding them can be added to
+/// `workspace.library` in `.emmyrc.json` as is.
+pub const DEFINITIONS: &[(&str, &str)] = &[
+    (
+        "luastd/init.lua",
+        include_str!("../definitions/luastd/init.lua"),
+    ),
+    (
+        "luastd/formatx.lua",
+        include_str!("../definitions/luastd/formatx.lua"),
+    ),
+    (
+        "luastd/math.lua",
+        include_str!("../definitions/luastd/math.lua"),
+    ),
+    (
+        "luastd/path.lua",
+        include_str!("../definitions/luastd/path.lua"),
+    ),
+    (
+        "luastd/semver.lua",
+        include_str!("../definitions/luastd/semver.lua"),
+    ),
+];
+
 /// The `luastd` root module: package metadata only.
 pub struct Root;
 

@@ -1,6 +1,6 @@
 //! Every pure module loads through `package.preload` and does what its stub says.
 
-use luastd::{FLOOR, Module, Path};
+use luastd::{DEFINITIONS, FLOOR, Module, Path};
 use mlua::{Function, Lua, Table};
 
 fn lua_with_floor() -> Lua {
@@ -75,4 +75,19 @@ fn math_add_raises_on_overflow() {
             || error.to_string().contains("integer expected"),
         "{error}"
     );
+}
+
+#[test]
+fn every_floor_module_has_a_definition_file() {
+    for (name, _) in FLOOR {
+        let file = match name.strip_prefix("luastd.") {
+            Some(rest) => format!("luastd/{}.lua", rest.replace('.', "/")),
+            None => "luastd/init.lua".to_owned(),
+        };
+        let (_, contents) = DEFINITIONS
+            .iter()
+            .find(|(path, _)| *path == file)
+            .unwrap_or_else(|| panic!("{name} has no {file}"));
+        assert!(contents.starts_with(&format!("---@meta {name}")), "{file}");
+    }
 }

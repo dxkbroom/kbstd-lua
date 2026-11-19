@@ -31,9 +31,10 @@ Run `mise run fmt` and `mise run lint` before committing.
   the pinned `mlua`.
 - `crates/luastd_lua/` - the cdylib (`luaopen_luastd`, `luaopen_luastd_path`, ...)
   built by lux for plain Lua consumers.
-- `definitions/luastd/` - EmmyLua `---@meta` stubs in `require` layout
-  (`init.lua`, `path.lua`, ...); `luastd.math.lua`-style names make emmylua
-  resolve `require("luastd.math")` to the builtin `math`.
+- `crates/luastd/definitions/luastd/` - EmmyLua `---@meta` stubs for the
+  pure modules in `require` layout (`init.lua`, `path.lua`, ...), embedded as
+  `luastd::DEFINITIONS`. `luastd.math.lua`-style names make emmylua resolve
+  `require("luastd.math")` to the builtin `math`.
 - `spec/` - busted specs, run by `lx test` against the cdylib.
 - `examples/tinyvi/` - small ratatui modal editor exercising the runtime; not published.
 - `xtasks/tasks/` - mise file tasks.
