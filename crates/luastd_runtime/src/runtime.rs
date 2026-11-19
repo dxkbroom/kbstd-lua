@@ -1,10 +1,14 @@
 //! [`Runtime`]: one Lua state plus the executor it runs on (ADR 0003).
 
+use std::rc::Rc;
+
 use deno_permissions::PermissionsContainer;
 use mlua::{Lua, Result, Table};
 use tokio::task::LocalSet;
 
+use crate::Prompter;
 use crate::builder::{Builder, NoPermissions, install_preload};
+use crate::prompt::{PrompterSlot, install_global_prompter};
 use crate::sandbox::{self, Options};
 
 type EffectLoader = fn(&Lua, &PermissionsContainer) -> Result<Table>;
@@ -29,9 +33,17 @@ impl Runtime {
     pub(crate) fn new(
         options: Options,
         permissions: Option<PermissionsContainer>,
+        prompter: Option<Rc<dyn Prompter>>,
         effects: &[(&'static str, EffectLoader)],
     ) -> Result<Self> {
         let lua = sandbox::new_lua(options)?;
+        if permissions.is_some() {
+            // deno's default prompter blocks on the TTY (ADR 0004).
+            install_global_prompter();
+        }
+        if let Some(prompter) = prompter {
+            lua.set_app_data(PrompterSlot(prompter));
+        }
         for (name, loader) in luastd::FLOOR {
             let loader = *loader;
             install_preload(&lua, name, lua.create_function(move |lua, ()| loader(lua))?)?;

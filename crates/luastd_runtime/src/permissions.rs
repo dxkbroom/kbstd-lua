@@ -5,7 +5,10 @@
 
 use std::sync::Arc;
 
-use deno_permissions::{Permissions, PermissionsContainer, RuntimePermissionDescriptorParser};
+use deno_permissions::{
+    Permissions, PermissionsContainer, PermissionsFromOptionsError, PermissionsOptions,
+    RuntimePermissionDescriptorParser,
+};
 use sys_traits::impls::RealSys;
 
 fn parser() -> Arc<RuntimePermissionDescriptorParser<RealSys>> {
@@ -20,4 +23,14 @@ pub fn allow_all() -> PermissionsContainer {
 /// Permissions that grant nothing and never prompt.
 pub fn deny_all() -> PermissionsContainer {
     PermissionsContainer::new(parser(), Permissions::none_without_prompt())
+}
+
+/// Permissions from deno's CLI-style options (`allow_env`, `deny_env`,
+/// `prompt`, ...).
+pub fn from_options(
+    options: &PermissionsOptions,
+) -> Result<PermissionsContainer, PermissionsFromOptionsError> {
+    let parser = parser();
+    let permissions = Permissions::from_options(parser.as_ref(), options)?;
+    Ok(PermissionsContainer::new(parser, permissions))
 }

@@ -1,18 +1,22 @@
 //! The typestate [`Builder`] for [`Runtime`].
 
+use std::rc::Rc;
+
 use deno_permissions::PermissionsContainer;
 use mlua::{Lua, Result, Table};
 
 use crate::sandbox::Options;
-use crate::{EffectModule, Runtime};
+use crate::{EffectModule, Prompter, Runtime};
 
 /// Builder state before permissions: only the floor can be installed.
 #[derive(Debug, Default)]
 pub struct NoPermissions;
 
 /// Builder state with permissions: effect modules can be installed.
-#[derive(Debug)]
-pub struct WithPermissions(PermissionsContainer);
+pub struct WithPermissions {
+    permissions: PermissionsContainer,
+    prompter: Option<Rc<dyn Prompter>>,
+}
 
 type EffectLoader = fn(&Lua, &PermissionsContainer) -> Result<Table>;
 
@@ -39,7 +43,10 @@ impl Builder<NoPermissions> {
     /// Hand the runtime its permissions, unlocking [`Builder::effect`].
     pub fn permissions(self, permissions: PermissionsContainer) -> Builder<WithPermissions> {
         Builder {
-            state: WithPermissions(permissions),
+            state: WithPermissions {
+                permissions,
+                prompter: None,
+            },
             options: self.options,
             effects: self.effects,
         }
@@ -47,7 +54,7 @@ impl Builder<NoPermissions> {
 
     /// Build a runtime with only the floor.
     pub fn build(self) -> Result<Runtime> {
-        Runtime::new(self.options, None, &[])
+        Runtime::new(self.options, None, None, &[])
     }
 }
 
@@ -58,9 +65,21 @@ impl Builder<WithPermissions> {
         self
     }
 
+    /// Answer deno's `prompt` state with the host's async [`Prompter`]
+    /// (ADR 0004). Without one, `prompt` counts as denied.
+    pub fn prompter(mut self, prompter: impl Prompter + 'static) -> Self {
+        self.state.prompter = Some(Rc::new(prompter));
+        self
+    }
+
     /// Build a runtime with the floor and every requested effect module.
     pub fn build(self) -> Result<Runtime> {
-        Runtime::new(self.options, Some(self.state.0), &self.effects)
+        Runtime::new(
+            self.options,
+            Some(self.state.permissions),
+            self.state.prompter,
+            &self.effects,
+        )
     }
 }
 

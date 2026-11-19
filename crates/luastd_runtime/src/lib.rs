@@ -35,11 +35,18 @@
 
 pub mod annotations;
 mod builder;
+#[cfg(feature = "env")]
+pub mod env;
+pub mod errors;
 pub mod permissions;
+mod prompt;
 mod runtime;
 mod sandbox;
 
 pub use builder::{Builder, NoPermissions, WithPermissions};
+#[cfg(feature = "env")]
+pub use env::Env;
+pub use prompt::{PromptDecision, PromptRequest, Prompter};
 pub use runtime::Runtime;
 
 pub use deno_permissions;

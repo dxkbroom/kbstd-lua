@@ -18,12 +18,26 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{Map, Value};
 
-/// Every stub as `(path relative to a library root, contents)`.
-///
-/// Currently the floor's stubs ([`luastd::DEFINITIONS`]); effect modules add
-/// theirs behind the same cargo features that compile them in.
+/// Stubs owned by this crate; effect modules' stubs follow their features.
+const RUNTIME_DEFINITIONS: &[(&str, &str)] = &[
+    (
+        "luastd/error.lua",
+        include_str!("../definitions/luastd/error.lua"),
+    ),
+    #[cfg(feature = "env")]
+    (
+        "luastd/env.lua",
+        include_str!("../definitions/luastd/env.lua"),
+    ),
+];
+
+/// Every stub as `(path relative to a library root, contents)`: the floor's
+/// ([`luastd::DEFINITIONS`]) plus this crate's, for the compiled-in modules.
 pub fn definitions() -> impl Iterator<Item = (&'static str, &'static str)> {
-    luastd::DEFINITIONS.iter().copied()
+    luastd::DEFINITIONS
+        .iter()
+        .chain(RUNTIME_DEFINITIONS)
+        .copied()
 }
 
 /// Write every stub under `dir` (created if missing), overwriting files with

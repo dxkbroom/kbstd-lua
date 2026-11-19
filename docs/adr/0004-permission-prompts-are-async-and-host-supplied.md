@@ -21,3 +21,12 @@ trait, then records the answer back in the container.
 - A host without UI passes no `Prompter`, and `prompt` behaves as denied.
 - luastd owns the global `set_prompter` slot; a host must not install its own
   deno prompter.
+
+## Note: a staged DeniedPrompter
+
+deno's `DeniedPrompter` answers every prompt with Deny, so `request_env` could
+never record a grant. luastd installs `StagedPrompter` instead: it behaves like
+`DeniedPrompter` unless luastd has staged the host's answer for the current
+`request_*` call on this thread, and it never touches the TTY. A probe on a
+`deep_clone` of the container tells luastd whether the container would prompt
+at all (`--no-prompt` style containers deny without asking the host).

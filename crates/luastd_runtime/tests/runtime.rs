@@ -164,7 +164,7 @@ fn run_drives_async_lua_and_timers() {
 fn annotations_cover_the_floor() {
     let dir = tempfile::tempdir().unwrap();
     let written = annotations::write(dir.path()).unwrap();
-    assert_eq!(written.len(), luastd_runtime::luastd::DEFINITIONS.len());
+    assert_eq!(written.len(), annotations::definitions().count());
     let path = fs::read_to_string(dir.path().join("luastd/path.lua")).unwrap();
     assert!(path.starts_with("---@meta luastd.path"));
 }
