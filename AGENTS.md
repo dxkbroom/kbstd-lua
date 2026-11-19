@@ -46,7 +46,10 @@ Run `mise run fmt` and `mise run lint` before committing.
 - `examples/tinyvi/` - small ratatui modal editor exercising the runtime; not published.
 - `xtasks/tasks/` - mise file tasks.
 - `.lazy.lua`, `.nvim/` - Neovim dev setup: the emmylua fork, `require("luastd")`
-  from this checkout, and `:Luastd [module] [example]` (`.nvim/examples.lua`).
+  from this checkout, `:Luastd [module] [example]` (`.nvim/examples.lua`), and
+  module navigation under `<leader>p` with a neo-tree source (`.nvim/project.lua`,
+  `.nvim/neotree.lua`). A module is its stub, `<module>.rs` and
+  `luastd_<module>_spec.lua`.
 - `lux.toml`, `luastd-*.rockspec` - Lua packaging; build `luastd_lua` via
   `cargo_extra_args = ["-p", "luastd_lua"]`.
 
