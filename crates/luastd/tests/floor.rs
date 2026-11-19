@@ -52,29 +52,14 @@ fn modules_work_together() {
         .load(
             r#"
             local formatx = require("luastd.formatx")
-            local math = require("luastd.math")
             local path = require("luastd.path")
             local semver = require("luastd.semver")
-            return formatx.format("{} {} {}", math.add(1, 2), path.new("a") / "b", semver.parse("1.2.3"))
+            return formatx.format("{} {} {}", 3, path.new("a") / "b", semver.parse("1.2.3"))
             "#,
         )
         .eval()
         .unwrap();
     assert_eq!(rendered, "3 a/b 1.2.3");
-}
-
-#[test]
-fn math_add_raises_on_overflow() {
-    let lua = lua_with_floor();
-    let error = lua
-        .load(r#"return require("luastd.math").add(9007199254740992, 9223372036854775807)"#)
-        .exec()
-        .unwrap_err();
-    assert!(
-        error.to_string().contains("integer overflow")
-            || error.to_string().contains("integer expected"),
-        "{error}"
-    );
 }
 
 #[test]

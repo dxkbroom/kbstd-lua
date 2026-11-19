@@ -5,7 +5,7 @@
 //! all-in-one loader. Every pure module ([`luastd::FLOOR`]) gets one entry
 //! point here.
 
-use luastd::{Formatx, Math, Module, Path, Root, Semver};
+use luastd::{Formatx, Module, Path, Root, Semver};
 use mlua::{Lua, Result, Table};
 
 #[mlua::lua_module]
@@ -16,11 +16,6 @@ pub fn luastd(lua: &Lua) -> Result<Table> {
 #[mlua::lua_module]
 pub fn luastd_formatx(lua: &Lua) -> Result<Table> {
     Formatx::create(lua)
-}
-
-#[mlua::lua_module]
-pub fn luastd_math(lua: &Lua) -> Result<Table> {
-    Math::create(lua)
 }
 
 #[mlua::lua_module]

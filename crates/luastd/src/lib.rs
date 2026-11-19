@@ -7,13 +7,11 @@
 use mlua::{Lua, Result, Table};
 
 pub mod formatx;
-pub mod math;
 pub mod path;
 pub mod semver;
 pub mod util;
 
 pub use formatx::Formatx;
-pub use math::Math;
 pub use path::Path;
 pub use semver::Semver;
 
@@ -36,7 +34,6 @@ pub type Loader = fn(&Lua) -> Result<Table>;
 pub const FLOOR: &[(&str, Loader)] = &[
     (Root::NAME, Root::create),
     (Formatx::NAME, Formatx::create),
-    (Math::NAME, Math::create),
     (Path::NAME, Path::create),
     (Semver::NAME, Semver::create),
 ];
@@ -54,10 +51,6 @@ pub const DEFINITIONS: &[(&str, &str)] = &[
     (
         "luastd/formatx.lua",
         include_str!("../definitions/luastd/formatx.lua"),
-    ),
-    (
-        "luastd/math.lua",
-        include_str!("../definitions/luastd/math.lua"),
     ),
     (
         "luastd/path.lua",
