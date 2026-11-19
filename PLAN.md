@@ -107,7 +107,7 @@ Bottom to top. Each layer builds, passes `mise run test` and `mise run lint`.
    Done: `lx test` passes against the cdylib built from `crates/luastd_lua`.
 3. **`luastd/pure`** - `Module` trait, argument helpers, `clippy.toml`
    disallowed methods; pure modules ported from the earlier attempt where they
-   still fit (`formatx`, `math`, `semver`) with stubs and specs.
+   still fit (`formatx`, `semver`; `math` was dropped) with stubs and specs.
    Done: each module has stubs, specs and Rust tests; clippy proves no IO.
 4. **`luastd/runtime`** - `Runtime`, typestate builder, preload installation,
    sandboxed globals, executor (ADR 0003), `EffectModule`, permissions and the
