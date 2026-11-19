@@ -1,14 +1,13 @@
 [package]
 name = "luastd_lua"
-description = "luastd pure modules as a Lua C module (luaopen_luastd*), built by lux."
-readme = "../../README.md"
-publish = false
 version.workspace = true
-authors.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-license.workspace = true
+description = "luastd pure modules as a Lua C module (luaopen_luastd*), built by lux."
+readme = "../../README.md"
 repository.workspace = true
+license.workspace = true
+publish = false
 
 [lib]
 # lux copies target/<profile>/libluastd_lua.so to luastd.so ([build.modules]).

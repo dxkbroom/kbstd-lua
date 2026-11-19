@@ -1,13 +1,12 @@
 [package]
 name = "luastd"
-description = "Pure (IO-free) Lua standard library modules written in Rust."
-readme = "../../README.md"
 version.workspace = true
-authors.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-license.workspace = true
+description = "Pure (IO-free) Lua standard library modules written in Rust."
+readme = "../../README.md"
 repository.workspace = true
+license.workspace = true
 
 [dependencies]
 camino = { workspace = true }
