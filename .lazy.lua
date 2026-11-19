@@ -19,7 +19,7 @@ if vim.fn.executable(emmylua_ls) == 1 then
     vim.lsp.config("emmylua_ls", { cmd = { emmylua_ls } })
 else
     vim.notify(
-        ("kbstd-lua: fork emmylua_ls not found at %s, using the default; run `mise run fork:build`"):format(emmylua_ls),
+        ("luastd: fork emmylua_ls not found at %s, using the default; run `mise run fork:build`"):format(emmylua_ls),
         vim.log.levels.WARN
     )
 end

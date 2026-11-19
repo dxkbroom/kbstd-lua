@@ -1,5 +1,5 @@
 rockspec_format = "3.1"
-package = "kbstd"
+package = "luastd"
 version = "0.0.1-1"
 
 dependencies = {
@@ -11,12 +11,13 @@ build_dependencies = {
 }
 
 source = {
-	url = "https://github.com/dxkbroom/kbstd-lua",
+	url = "https://github.com/dxkbroom/luastd",
 }
 
 build = {
 	type = "rust-mlua",
+	cargo_extra_args = { "-p", "luastd_lua" },
 	modules = {
-		kbstd = "kbstd",
+		luastd = "luastd_lua",
 	},
 }

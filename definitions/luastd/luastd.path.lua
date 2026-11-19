@@ -1,7 +1,7 @@
 ---@meta
 
 --- A parsed UTF-8 path component.
----@class kbstd.path.Component
+---@class luastd.path.Component
 ---@field kind  string one of `"prefix"`, `"root"`, `"curdir"`, `"parentdir"`, or `"normal"`
 ---@field value string the component text; the root separator for `"root"`
 
@@ -20,11 +20,11 @@
 --- operands are ignored.
 ---
 --- Construct with `path.new`. There is no runtime `path.Path` class table.
----@class kbstd.path.Path
----@operator eq(kbstd.path.Path): boolean
----@operator lt(kbstd.path.Path): boolean
----@operator le(kbstd.path.Path): boolean
----@operator div(string | kbstd.path.Path): kbstd.path.Path
+---@class luastd.path.Path
+---@operator eq(luastd.path.Path): boolean
+---@operator lt(luastd.path.Path): boolean
+---@operator le(luastd.path.Path): boolean
+---@operator div(string | luastd.path.Path): luastd.path.Path
 local Path = {}
 
 --- Check whether the path is absolute.
@@ -40,12 +40,12 @@ function Path:is_relative() end
 function Path:has_root() end
 
 --- Return the parent path, or `nil` at the root.
----@return kbstd.path.Path | nil
+---@return luastd.path.Path | nil
 function Path:parent() end
 
 --- Return every ancestor, starting with this path and ending at the root or
 --- the empty path.
----@return kbstd.path.Path[]
+---@return luastd.path.Path[]
 function Path:ancestors() end
 
 --- Return the final component, or `nil`.
@@ -68,29 +68,29 @@ function Path:extension() end
 --- `nil` and empty arguments are ignored and an absolute argument replaces
 --- this path, matching `Utf8PathBuf::push`. `path / other` is the same
 --- operation.
----@param ... string | kbstd.path.Path | nil
----@return kbstd.path.Path
+---@param ... string | luastd.path.Path | nil
+---@return luastd.path.Path
 function Path:join(...) end
 
 --- Replace the final component with `file_name`.
 ---
 --- `file_name` may contain separators; they become path components.
 ---@param file_name string
----@return kbstd.path.Path
+---@return luastd.path.Path
 function Path:with_file_name(file_name) end
 
 --- Replace the extension with `extension`; an empty extension removes it.
 ---
 --- Raises when `extension` contains a path separator.
 ---@param extension string
----@return kbstd.path.Path
+---@return luastd.path.Path
 function Path:with_extension(extension) end
 
 --- Append `extension` without replacing an existing one.
 ---
 --- Raises when `extension` contains a path separator.
 ---@param extension string
----@return kbstd.path.Path
+---@return luastd.path.Path
 function Path:with_added_extension(extension) end
 
 --- Check whether this path starts with `base`, comparing whole components.
@@ -107,18 +107,18 @@ function Path:ends_with(child) end
 ---
 --- Raises when `prefix` is not a component-wise prefix.
 ---@param prefix string
----@return kbstd.path.Path
+---@return luastd.path.Path
 function Path:strip_prefix(prefix) end
 
 --- Return the parsed components, including root and `.`/`..` markers.
----@return kbstd.path.Component[]
+---@return luastd.path.Component[]
 function Path:components() end
 
 --- Path helpers provided by the `kbliblua` Rust host.
 ---
 --- Wraps the lexical, UTF-8 path operations from the Rust `camino` crate.
 --- Construct with `path.new`. `join` is the string-only module shortcut.
----@class kbstd.path
+---@class luastd.path
 local path = {}
 
 --- Create a path by joining every argument from left to right.
@@ -128,8 +128,8 @@ local path = {}
 --- everything joined so far. Text is otherwise kept verbatim: joining does
 --- not normalize `.`, `..`, or repeated separators, and never touches the
 --- filesystem.
----@param ... string | kbstd.path.Path | nil
----@return kbstd.path.Path
+---@param ... string | luastd.path.Path | nil
+---@return luastd.path.Path
 function path.new(...) end
 
 --- Join every argument from left to right and return the result as a string.
@@ -137,7 +137,7 @@ function path.new(...) end
 --- `nil` and empty arguments are ignored and an absolute argument replaces
 --- everything joined so far, matching `Utf8PathBuf::push`. At least one
 --- argument is required.
----@param ... string | kbstd.path.Path | nil
+---@param ... string | luastd.path.Path | nil
 ---@return string
 function path.join(...) end
 

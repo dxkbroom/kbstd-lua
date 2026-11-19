@@ -1,15 +1,18 @@
-package = "kbstd"
+package = "luastd"
 version = "0.0.1"
 lua = ">=5.1"
 
 [build]
 type = "rust-mlua"
+# Build the cdylib crate of the workspace; lux runs cargo from the repo root.
+cargo_extra_args = ["-p", "luastd_lua"]
 
 [build.modules]
-kbstd = "kbstd"
+# Lua module name = cargo library name (libluastd_lua.so -> luastd.so).
+luastd = "luastd_lua"
 
 [test_dependencies]
 busted = ">=2.3"
 
 [source]
-url = "https://github.com/dxkbroom/kbstd-lua"
+url = "https://github.com/dxkbroom/luastd"

@@ -10,28 +10,28 @@ run = "cargo clean"
 [build]
 alias = "b"
 usage = """
-arg "<TARGET>" default="luajit" {
-  choices "luajit" "lua51" "lua52" "lua53" "lua54" "lua55"
+arg "<TARGET>" default="luajit52" {
+  choices "luajit52" "luajit" "lua52" "lua53" "lua54" "lua55"
 }
 """
-run = "{{ get_env(name='MISE_CARGO_BUILD_COMMAND', default='cargo build') }} --features=$usage_target {{ get_env(name='MISE_CARGO_BUILD_EXTRA_ARGS', default='') }}"
-run_windows = "{{ get_env(name='MISE_CARGO_BUILD_COMMAND', default='cargo build') }} --features=$usage_target {{ get_env(name='MISE_CARGO_BUILD_EXTRA_ARGS', default='') }}"
+run = "{{ get_env(name='MISE_CARGO_BUILD_COMMAND', default='cargo build') }} --workspace --features=luastd_lua/$usage_target {{ get_env(name='MISE_CARGO_BUILD_EXTRA_ARGS', default='') }}"
+run_windows = "{{ get_env(name='MISE_CARGO_BUILD_COMMAND', default='cargo build') }} --workspace --features=luastd_lua/$usage_target {{ get_env(name='MISE_CARGO_BUILD_EXTRA_ARGS', default='') }}"
 description = "Build the project"
 
 [fmt]
 description = "Format TOML, Markdown, Rust and Lua files"
 alias = ["format"]
-run = ["cargo fmt --all --", "rumdl fmt", "tombi format", "luafmt --write --recursive spec/ definitions/kbstd"]
+run = ["cargo fmt --all --", "rumdl fmt", "tombi format", "luafmt --write --recursive spec/ definitions/luastd"]
 
 [lint]
 description = "Lint TOML, Markdown, Rust and Lua files"
 alias = ["check"]
 usage = """
-arg "<TARGET>" default="luajit" {
-  choices "luajit" "lua51" "lua52" "lua53" "lua54" "lua55"
+arg "<TARGET>" default="luajit52" {
+  choices "luajit52" "luajit" "lua52" "lua53" "lua54" "lua55"
 }
 """
-run = ["rumdl check", "tombi check", "cargo check --features=$usage_target", "emmylua_check --config .emmyrc.json spec/ definitions/ --warnings-as-errors"]
+run = ["rumdl check", "tombi check", "cargo clippy --workspace --all-targets --features=luastd_lua/$usage_target -- -D warnings", "emmylua_check --config .emmyrc.json spec/ definitions/ --warnings-as-errors"]
 
 ["fork:build"]
 description = "Rebuild the local emmylua-analyzer-rust fork (temporary until we switch to a remote source)"
@@ -42,8 +42,8 @@ run = "cargo build --release -p emmylua_check -p emmylua_ls -p emmylua_formatter
 description = "run all tests"
 alias = "t"
 usage = """
-arg "<TARGET>" default="luajit" {
-  choices "luajit" "lua51" "lua52" "lua53" "lua54" "lua55"
+arg "<TARGET>" default="luajit52" {
+  choices "luajit52" "luajit" "lua52" "lua53" "lua54" "lua55"
 }
 """
 run = ["mise tasks run test:unit $usage_target"]
@@ -51,15 +51,22 @@ run = ["mise tasks run test:unit $usage_target"]
 ["test:unit"]
 description = "run unit tests"
 usage = """
-arg "<TARGET>" default="luajit" {
-  choices "luajit" "lua51" "lua52" "lua53" "lua54" "lua55"
+arg "<TARGET>" default="luajit52" {
+  choices "luajit52" "luajit" "lua52" "lua53" "lua54" "lua55"
 }
 """
 run = """
 #!/usr/bin/env bash
 set -xeuo pipefail
-cargo test --features $usage_target
-lua_version="${usage_target#lua}"
-lx test --lua-version=$lua_version --no-luarc
+# Default members only: luastd_lua forces mlua's `module`, which cannot link
+# test binaries. lux builds luastd_lua itself (lux.toml).
+cargo test --features "luastd/$usage_target"
+case "$usage_target" in
+  # lux builds jit52 with mlua's `luajit` feature anyway, and has no luajit52
+  # interpreter here (its busted wrapper falls back to /usr/bin/lua).
+  luajit52 | luajit) lua_version=jit ;;
+  lua5*) lua_version="5.${usage_target#lua5}" ;;
+esac
+lx test --lua-version="$lua_version" --no-luarc
 """
 env = { CARGO_TERM_COLOR = "always", "RUST_TEST_THREADS" = "1" }

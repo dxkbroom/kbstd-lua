@@ -1,6 +1,6 @@
-local path = require("kbstd.path")
+local path = require("luastd.path")
 
-describe("kbstd.path", function ()
+describe("luastd.path", function ()
     describe("new", function ()
         it("defaults to the empty path", function ()
             local value = path.new()

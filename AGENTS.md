@@ -54,6 +54,10 @@ Run `mise run fmt` and `mise run lint` before committing.
   `io.popen`; `package` and `debug` exposure is the host's choice.
 - **`require`, not globals.** Modules are reached as `require("luastd.path")`
   through `package.preload`; nothing is added to `_G`.
+- **`luastd_lua` is not a default member.** It forces mlua's `module` feature,
+  which conflicts with `vendored` and cannot link test binaries; plain
+  `cargo build`/`cargo test` skip it, and lux builds it with `-p luastd_lua`.
+  Do not run `cargo test --workspace`.
 - **One thread per Lua state** (ADR 0002). Use `Rc`/`RefCell`; never mlua `send`.
 - **The runtime owns the executor** (ADR 0003): tokio current-thread plus a
   `LocalSet`; the host loop runs inside `rt.run`.
