@@ -126,3 +126,36 @@ fn pcall_is_replaced_but_still_catches_errors() {
     let pcall: Function = rt.lua().globals().get("pcall").unwrap();
     assert!(pcall.info().what != "C");
 }
+
+#[test]
+fn cancellation_survives_a_rust_frame() {
+    let rt = runtime();
+    let call = rt
+        .lua()
+        .create_async_function(|_, f: Function| async move { f.call_async::<()>(()).await })
+        .unwrap();
+    rt.lua().globals().set("call", call).unwrap();
+    let (reached, cancelled): (bool, bool) = rt
+        .run(async |lua| {
+            lua.load(
+                r#"
+                local async = require("luastd.async")
+                local reached = false
+                local job = async.launch(function ()
+                    -- `call` is Rust: the cancellation crosses it twice.
+                    pcall(call, function () async.delay(1000) end)
+                    reached = true
+                end)
+                async.delay(5)
+                job:cancel()
+                job:join()
+                return reached, job:is_cancelled()
+                "#,
+            )
+            .eval_async()
+            .await
+        })
+        .unwrap();
+    assert!(!reached, "pcall swallowed a cancellation that crossed Rust");
+    assert!(cancelled);
+}

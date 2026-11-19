@@ -29,14 +29,55 @@ describe("luastd.async", function ()
         end)
 
         it("await returns every value", function ()
-            local a, b = async.scope(function ()
-                return async.async(function ()
+            local a, b = async.await(async.async(function ()
                     async.delay(5)
                     return 1, 2
-                end):await()
-            end)
+                end))
             assert.is_equal(1, a)
             assert.is_equal(2, b)
+        end)
+
+        it("the await method returns the same values", function ()
+            local deferred = async.async(function ()
+                return "x", "y"
+            end)
+            local x, y = deferred:await()
+            assert.is_equal("x", x)
+            assert.is_equal("y", y)
+        end)
+
+        it("join waits without returning values", function ()
+            local done = false
+            local job = async.launch(function ()
+                async.delay(5)
+                done = true
+            end)
+            async.join(job)
+            assert.is_true(done)
+            assert.is_true(job:is_completed())
+        end)
+
+        it("await_all returns the first value of each, in argument order", function ()
+            local slow = async.async(function ()
+                async.delay(20)
+                return "slow", "dropped"
+            end)
+            local fast = async.async(function () return "fast" end)
+            local a, b = async.await_all(slow, fast)
+            assert.is_equal("slow", a)
+            assert.is_equal("fast", b)
+            assert.is_nil(async.await_all())
+        end)
+
+        it("await_all raises the first failure it reaches", function ()
+            local err = error_of(function ()
+                async.supervisor_scope(function ()
+                    local ok = async.async(function () return 1 end)
+                    local bad = async.async(function () error({ kind = "Bad" }) end)
+                    async.await_all(ok, bad)
+                end)
+            end)
+            assert.is_equal("Bad", err.kind)
         end)
 
         it("pass the job's own scope to the body", function ()
@@ -318,6 +359,7 @@ describe("luastd.async", function ()
         it("delivers buffered values in order and ends iteration on close", function ()
             local ch = async.channel(4)
             for i = 1, 3 do
+                ---@diagnostic disable-next-line: param-type-mismatch -- TODO(emmylua-fork): Channel<T> param T not substituted
                 ch:send(i)
             end
             ch:close()
@@ -334,6 +376,7 @@ describe("luastd.async", function ()
             async.scope(function ()
                 local ch = async.channel()
                 async.launch(function ()
+                    ---@diagnostic disable-next-line: param-type-mismatch -- TODO(emmylua-fork): Channel<T> param T not substituted
                     ch:send("x")
                     table.insert(log, "sent")
                 end)
@@ -347,9 +390,11 @@ describe("luastd.async", function ()
         it("streams between jobs", function ()
             local sum = 0
             async.scope(function ()
+                ---@type luastd.async.Channel<integer>
                 local ch = async.channel(1)
                 async.launch(function ()
                     for i = 1, 10 do
+                        ---@diagnostic disable-next-line: param-type-mismatch -- TODO(emmylua-fork): Channel<T> param T not substituted
                         ch:send(i)
                     end
                     ch:close()
@@ -365,6 +410,7 @@ describe("luastd.async", function ()
             local ch = async.channel(1)
             ch:close()
             assert.is_equal("ChannelClosed", error_of(function () ch:receive() end).kind)
+            ---@diagnostic disable-next-line: param-type-mismatch -- TODO(emmylua-fork): Channel<T> param T not substituted
             assert.is_equal("ChannelClosed", error_of(function () ch:send(1) end).kind)
             ---@diagnostic disable-next-line: param-type-mismatch
             assert.is_equal("InvalidArgument", error_of(function () async.channel(1):send(nil) end).kind)
@@ -387,10 +433,14 @@ describe("luastd.async", function ()
                 local ch = async.channel(8)
                 local quiet = ch:debounce(20)
                 async.launch(function ()
+                    ---@diagnostic disable-next-line: param-type-mismatch -- TODO(emmylua-fork): Channel<T> param T not substituted
                     ch:send(1)
+                    ---@diagnostic disable-next-line: param-type-mismatch -- TODO(emmylua-fork): Channel<T> param T not substituted
                     ch:send(2)
                     async.delay(50)
+                    ---@diagnostic disable-next-line: param-type-mismatch -- TODO(emmylua-fork): Channel<T> param T not substituted
                     ch:send(3)
+                    ---@diagnostic disable-next-line: param-type-mismatch -- TODO(emmylua-fork): Channel<T> param T not substituted
                     ch:send(4)
                     ch:close()
                 end)
@@ -399,6 +449,199 @@ describe("luastd.async", function ()
                 end
             end)
             assert.are.same({ 2, 4 }, got)
+        end)
+    end)
+
+    describe("channel cancellation", function ()
+        it("cancel stops a blocked sender quietly", function ()
+            local sent_after = false
+            local job
+            async.scope(function ()
+                local ch = async.channel()
+                job = async.launch(function ()
+                    ---@diagnostic disable-next-line: param-type-mismatch -- TODO(emmylua-fork): Channel<T> param T not substituted
+                    ch:send(1) -- waits for a receiver that never comes
+                    sent_after = true
+                end)
+                async.delay(5)
+                ch:cancel()
+            end) -- no error reaches the scope
+            assert.is_false(sent_after)
+            assert.is_true(job:is_cancelled())
+        end)
+
+        it("later sends on a cancelled channel cancel the sender", function ()
+            local job
+            async.scope(function ()
+                local ch = async.channel(4)
+                ch:cancel()
+                ---@diagnostic disable-next-line: param-type-mismatch -- TODO(emmylua-fork): Channel<T> param T not substituted
+                job = async.launch(function () ch:send(1) end)
+            end)
+            assert.is_true(job:is_cancelled())
+        end)
+
+        it("cancel drops buffered values and ends iteration", function ()
+            local ch = async.channel(4)
+            ---@diagnostic disable-next-line: param-type-mismatch -- TODO(emmylua-fork): Channel<T> param T not substituted
+            ch:send(1)
+            ---@diagnostic disable-next-line: param-type-mismatch -- TODO(emmylua-fork): Channel<T> param T not substituted
+            ch:send(2)
+            ch:cancel()
+            assert.is_true(ch:is_closed())
+            local got = {}
+            for v in ch:iter() do
+                table.insert(got, v)
+            end
+            assert.are.same({}, got)
+        end)
+    end)
+
+    describe("produce", function ()
+        it("closes the channel when the producer ends", function ()
+            local got = {}
+            async.scope(function ()
+                local ch = async.produce(function (out)
+                    for i = 1, 3 do
+                        ---@diagnostic disable-next-line: param-type-mismatch -- TODO(emmylua-fork): Channel<T> param T not substituted
+                        out:send(i)
+                    end
+                end)
+                for v in ch:iter() do
+                    table.insert(got, v)
+                end
+            end)
+            assert.are.same({ 1, 2, 3 }, got)
+        end)
+
+        it("passes the producer's scope and honours the capacity", function ()
+            local sent = 0
+            async.scope(function ()
+                local ch = async.produce(function (out, scope)
+                    assert.is_true(scope:is_active())
+                    for i = 1, 3 do
+                        ---@diagnostic disable-next-line: param-type-mismatch -- TODO(emmylua-fork): Channel<T> param T not substituted
+                        out:send(i)
+                        sent = i
+                    end
+                end, 2)
+                async.delay(10)
+                assert.is_equal(2, sent) -- third send waits for room
+                ch:cancel()
+            end)
+        end)
+
+        it("is cancelled when the consumer cancels", function ()
+            local cleaned = false
+            async.scope(function ()
+                local ch = async.produce(function (out)
+                    async.finally(function ()
+                        local i = 0
+                        while true do
+                            i = i + 1
+                            ---@diagnostic disable-next-line: param-type-mismatch -- TODO(emmylua-fork): Channel<T> param T not substituted
+                            out:send(i)
+                        end
+                    end, function () cleaned = true end)
+                end)
+                assert.is_equal(1, ch:receive())
+                ch:cancel()
+            end)
+            assert.is_true(cleaned)
+        end)
+
+        it("a failing producer fails the scope", function ()
+            local err = error_of(function ()
+                async.scope(function ()
+                    local ch = async.produce(function (out)
+                        ---@diagnostic disable-next-line: param-type-mismatch -- TODO(emmylua-fork): Channel<T> param T not substituted
+                        out:send(1)
+                        error({ kind = "ProducerFailed" })
+                    end)
+                    for _ in ch:iter() do end
+                end)
+            end)
+            assert.is_equal("ProducerFailed", err.kind)
+        end)
+    end)
+
+    describe("each", function ()
+        local function endless()
+            return async.produce(function (out)
+                local i = 0
+                while true do
+                    i = i + 1
+                    ---@diagnostic disable-next-line: param-type-mismatch -- TODO(emmylua-fork): Channel<T> param T not substituted
+                    out:send(i)
+                end
+            end)
+        end
+
+        it("stops when fn returns false and cancels the producer (no hang)", function ()
+            local got = {}
+            -- A regression would hang the scope on the endless producer; the
+            -- timeout turns that into a failure.
+            async.with_timeout(1000, function ()
+                async.scope(function ()
+                    endless():each(function (v)
+                        table.insert(got, v)
+                        return v < 3
+                    end)
+                end)
+            end)
+            assert.are.same({ 1, 2, 3 }, got)
+        end)
+
+        it("cancels the channel when fn raises", function ()
+            local ch
+            local err = error_of(function ()
+                async.with_timeout(1000, function ()
+                    async.scope(function ()
+                        ch = endless()
+                        ch:each(function () error({ kind = "Stop" }) end)
+                    end)
+                end)
+            end)
+            assert.is_equal("Stop", err.kind)
+            assert.is_true(ch:is_closed())
+        end)
+
+        it("cancels the channel when the consumer is cancelled", function ()
+            local ch
+            async.with_timeout(1000, function ()
+                async.scope(function ()
+                    ch = endless()
+                    local consumer = async.launch(function ()
+                        ch:each(function () async.delay(1) end)
+                    end)
+                    async.delay(10)
+                    consumer:cancel()
+                end)
+            end)
+            assert.is_true(ch:is_closed())
+        end)
+
+        it("runs to the end of a closed channel", function ()
+            local ch, got = async.channel(3), {}
+            for i = 1, 3 do
+                ---@diagnostic disable-next-line: param-type-mismatch -- TODO(emmylua-fork): Channel<T> param T not substituted
+                ch:send(i)
+            end
+            ch:close()
+            ch:each(function (v) table.insert(got, v) end)
+            assert.are.same({ 1, 2, 3 }, got)
+        end)
+
+        it("iter with an early break needs cancel to release the producer", function ()
+            async.with_timeout(1000, function ()
+                async.scope(function ()
+                    local ch = endless()
+                    for v in ch:iter() do
+                        if v == 2 then break end
+                    end
+                    ch:cancel() -- without this the scope would wait forever
+                end)
+            end)
         end)
     end)
 
