@@ -13,8 +13,8 @@ fn runtime() -> Runtime {
 fn async_spec() {
     common::run_spec(
         &runtime(),
-        "async_spec.lua",
-        include_str!("lua/async_spec.lua"),
+        "luastd_async_spec.lua",
+        include_str!("lua/luastd_async_spec.lua"),
     );
 }
 
