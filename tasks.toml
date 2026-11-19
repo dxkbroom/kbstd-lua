@@ -37,6 +37,10 @@ run = ["rumdl check", "tombi check", "cargo clippy --workspace --all-targets --f
 description = "Run the luastd_runtime hello example (vendored LuaJIT 5.2-compat)"
 run = "cargo run -p luastd_runtime --example hello --features luajit52,vendored"
 
+["nvim:build"]
+description = "Build the luastd cdylib for Neovim's LuaJIT into target/nvim (loaded by .lazy.lua)"
+run = "cargo build --release -p luastd_lua --features luastd_lua/luajit --target-dir target/nvim"
+
 ["fork:build"]
 description = "Rebuild the local emmylua-analyzer-rust fork (temporary until we switch to a remote source)"
 dir = "{{config_root}}/../emmylua-analyzer-rust"
