@@ -36,4 +36,18 @@ if vim.fn.executable(luafmt) == 1 then
     end)
 end
 
+-- rust-analyzer: check with one Lua version and the effect-module features, so
+-- `#[cfg(feature = "env")]` code is analysed. No `vendored`: luastd_lua always
+-- enables mlua's `module`, which conflicts with `vendored` in a workspace check.
+-- Editor-only; `mise run build`/`test` pass their own features.
+vim.lsp.config("rust_analyzer", {
+    settings = {
+        ["rust-analyzer"] = {
+            cargo = {
+                features = { "luastd_runtime/env", "luastd_runtime/luajit52" },
+            },
+        },
+    },
+})
+
 return {}
