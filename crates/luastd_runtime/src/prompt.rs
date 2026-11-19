@@ -197,13 +197,15 @@ pub(crate) async fn check<D: Descriptor>(
                 format!("{} has not been granted", question(&descriptor)),
             ));
         }
-        let decision = prompter
-            .prompt(PromptRequest {
-                permission: D::PERMISSION,
-                target: descriptor.target(),
-                message: question(&descriptor),
-            })
-            .await;
+        let request = PromptRequest {
+            permission: D::PERMISSION,
+            target: descriptor.target(),
+            message: question(&descriptor),
+        };
+        // Cancelling the coroutine abandons the question; nothing is recorded.
+        let Some(decision) = crate::cancellable(lua, prompter.prompt(request)).await else {
+            return Err(LuaErrorTable::cancelled());
+        };
         with_staged(decision, || descriptor.request(container));
     }
     descriptor

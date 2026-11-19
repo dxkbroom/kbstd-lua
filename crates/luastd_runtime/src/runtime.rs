@@ -3,13 +3,35 @@
 use std::rc::Rc;
 
 use deno_permissions::PermissionsContainer;
-use mlua::{Lua, Result, Table};
+use mlua::{Function, Lua, Result, Table};
 use tokio::task::LocalSet;
 
 use crate::Prompter;
 use crate::builder::{Builder, NoPermissions, install_preload};
 use crate::prompt::{PrompterSlot, install_global_prompter};
 use crate::sandbox::{self, Options};
+use crate::scheduler;
+
+/// Install `luastd.async` and its cancellation-aware `pcall`/`xpcall`.
+fn install_async(lua: &Lua) -> Result<()> {
+    let core = scheduler::install(lua)?;
+    let globals = lua.globals();
+    let (module, pcall, xpcall): (Table, Function, Function) = lua
+        .load(include_str!("async.lua"))
+        .set_name("=luastd.async")
+        .call((
+            core,
+            globals.get::<Function>("pcall")?,
+            globals.get::<Function>("xpcall")?,
+        ))?;
+    globals.set("pcall", pcall)?;
+    globals.set("xpcall", xpcall)?;
+    install_preload(
+        lua,
+        "luastd.async",
+        lua.create_function(move |_, ()| Ok(module.clone()))?,
+    )
+}
 
 type EffectLoader = fn(&Lua, &PermissionsContainer) -> Result<Table>;
 
@@ -59,6 +81,7 @@ impl Runtime {
                 )?;
             }
         }
+        install_async(&lua)?;
         sandbox::hide_package(&lua, options)?;
 
         let tokio = tokio::runtime::Builder::new_current_thread()
@@ -103,8 +126,18 @@ impl Runtime {
     /// When called from inside another tokio runtime, including a nested
     /// `run`.
     pub fn run<T>(&self, main: impl AsyncFnOnce(Lua) -> Result<T>) -> Result<T> {
-        // Hook: the async layer opens the implicit root scope around `main`
-        // here (PLAN.md, `luastd/async`).
-        self.local.block_on(&self.tokio, main(self.lua.clone()))
+        self.local.block_on(&self.tokio, async {
+            // The implicit root scope: jobs launched outside any scope are
+            // its children. It is a supervisor, so they fail independently.
+            let root = scheduler::open_root(&self.lua)?;
+            let result = main(self.lua.clone()).await;
+            if result.is_err() {
+                scheduler::cancel_jobs(&self.lua);
+            }
+            // Like `runBlocking`: wait for launched jobs. Hosts that want to
+            // stop them call `luastd_runtime::cancel_jobs` first.
+            scheduler::close_root(&self.lua, &root).await?;
+            result
+        })
     }
 }

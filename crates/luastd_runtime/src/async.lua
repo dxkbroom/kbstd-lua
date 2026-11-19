@@ -1,0 +1,342 @@
+-- luastd.async: the Lua half of structured concurrency (ADR 0003, 0005).
+-- The Rust core (scheduler.rs) owns jobs, tokens and channels; this file owns
+-- every user-facing function, so error values (tables, the cancellation
+-- sentinel) are raised from Lua and never lose their identity in a Rust frame.
+
+-- Job bodies run in coroutines the scheduler drives, so they may suspend.
+---@diagnostic disable: await-in-sync
+
+local core, raw_pcall, raw_xpcall = ...
+local CANCELLED = core.CANCELLED
+---@diagnostic disable-next-line: undefined-global, deprecated
+local unpack = table.unpack or unpack
+
+local function pack(...)
+    return { n = select("#", ...), ... }
+end
+
+local function raise_cancelled()
+    error(CANCELLED, 0)
+end
+
+local function new_error(kind, message)
+    return core.new_error(kind, message)
+end
+
+local function check_fn(value, index, name)
+    if type(value) ~= "function" then
+        error(
+            new_error(
+                "InvalidArgument",
+                ("bad argument #%d to '%s' (function expected, got %s)"):format(index, name, type(value))
+            ), 3
+        )
+    end
+end
+
+local function check_ms(value, index, name)
+    if type(value) ~= "number" or value ~= value or value < 0 then
+        error(new_error(
+                "InvalidArgument",
+                ("bad argument #%d to '%s' (non-negative number of milliseconds expected, got %s)")
+                    :format(index, name, tostring(value))
+            ), 3)
+    end
+end
+
+-- pcall / xpcall that never swallow cancellation (ADR 0005).
+
+local function rethrow(ok, ...)
+    if not ok and rawequal((...), CANCELLED) then raise_cancelled() end
+    return ok, ...
+end
+
+local function pcall(f, ...)
+    return rethrow(raw_pcall(f, ...))
+end
+
+local function xpcall(f, handler, ...)
+    return rethrow(raw_xpcall(f, function (err)
+            if rawequal(err, CANCELLED) then return err end
+            return handler(err)
+        end, ...
+        ))
+end
+
+local async = {}
+
+--- Job, Deferred and Scope share one implementation over a core handle.
+local Node = {}
+Node.__index = Node
+
+local function wrap(handle)
+    return setmetatable({ _handle = handle }, Node)
+end
+
+local function run_cancel_handlers(handle)
+    local handlers = core.take_on_cancel(handle)
+    if #handlers == 0 then return end
+    core.push_non_cancellable()
+    for i = 1, #handlers do
+        raw_pcall(handlers[i])
+    end
+    core.pop_non_cancellable()
+end
+
+-- Settle a finished body: wait for children, run on_cancel handlers when it
+-- did not complete normally, then record the result and wake joiners.
+local function finish(handle, result)
+    local status, err = core.settle(handle, result[1], result[2])
+    if status ~= "ok" then run_cancel_handlers(handle) end
+    core.complete(handle, status, status == "ok" and result or err)
+    return status, err
+end
+
+-- The main function of every job's coroutine.
+core.set_runner(function (handle, body)
+    local _, cancelled = core.state(handle)
+    local result
+    if cancelled then
+        result = pack(false, CANCELLED) -- launched into a finished or cancelled scope
+    else
+        result = pack(raw_pcall(body, wrap(handle)))
+    end
+    finish(handle, result)
+end)
+
+local function run_scope(kind, body, ms)
+    local handle = core.enter(kind)
+    if ms then core.timeout(handle, ms) end
+    local result = pack(raw_pcall(body, wrap(handle)))
+    local status, err = finish(handle, result)
+    if status == "ok" then return unpack(result, 2, result.n) end
+    if status == "failed" then error(err, 0) end
+    if status == "timeout" then
+        error(new_error("Timeout", ("timed out after %s ms"):format(tostring(ms))), 0)
+    end
+    raise_cancelled()
+end
+
+function Node:launch(body)
+    check_fn(body, 1, "launch")
+    return wrap(core.spawn(self._handle, "launch", body))
+end
+
+function Node:async(body)
+    check_fn(body, 1, "async")
+    return wrap(core.spawn(self._handle, "async", body))
+end
+
+function Node:cancel()
+    core.cancel(self._handle)
+end
+
+function Node:is_active()
+    local active = core.state(self._handle)
+    return active
+end
+
+function Node:is_cancelled()
+    local _, cancelled = core.state(self._handle)
+    return cancelled
+end
+
+function Node:is_completed()
+    local _, _, done = core.state(self._handle)
+    return done
+end
+
+function Node:on_cancel(handler)
+    check_fn(handler, 1, "on_cancel")
+    core.on_cancel(self._handle, handler)
+end
+
+function Node:join()
+    if not core.join(self._handle) then raise_cancelled() end
+end
+
+function Node:await()
+    if not core.join(self._handle) then raise_cancelled() end
+    local status, value = core.result(self._handle)
+    if status == "ok" then return unpack(value, 2, value.n) end
+    if status == "failed" then error(value, 0) end
+    error(new_error("JobCancelled", "the awaited job was cancelled"), 2)
+end
+
+function async.launch(body)
+    check_fn(body, 1, "launch")
+    return wrap(core.spawn(core.current(), "launch", body))
+end
+
+async["async"] = function (body)
+    check_fn(body, 1, "async")
+    return wrap(core.spawn(core.current(), "async", body))
+end
+
+function async.scope(body)
+    check_fn(body, 1, "scope")
+    return run_scope("scope", body)
+end
+
+function async.supervisor_scope(body)
+    check_fn(body, 1, "supervisor_scope")
+    return run_scope("supervisor", body)
+end
+
+function async.with_timeout(ms, body)
+    check_ms(ms, 1, "with_timeout")
+    check_fn(body, 2, "with_timeout")
+    return run_scope("timeout", body, ms)
+end
+
+function async.delay(ms)
+    check_ms(ms, 1, "delay")
+    if not core.delay(ms) then raise_cancelled() end
+end
+
+function async.yield()
+    if not core.yield() then raise_cancelled() end
+end
+
+function async.is_active()
+    return core.active()
+end
+
+function async.current()
+    return wrap(core.current())
+end
+
+function async.is_cancellation(err)
+    return rawequal(err, CANCELLED)
+end
+
+function async.finally(body, cleanup)
+    check_fn(body, 1, "finally")
+    check_fn(cleanup, 2, "finally")
+    local result = pack(raw_pcall(body))
+    core.push_non_cancellable()
+    local cleaned = pack(raw_pcall(cleanup))
+    core.pop_non_cancellable()
+    if not result[1] then error(result[2], 0) end
+    if not cleaned[1] then error(cleaned[2], 0) end
+    return unpack(result, 2, result.n)
+end
+
+-- Channels.
+
+local Channel = {}
+Channel.__index = Channel
+
+function async.channel(cap)
+    if cap == nil then cap = 0 end
+    if type(cap) ~= "number" or cap < 0 or cap % 1 ~= 0 then
+        error(
+            new_error(
+                "InvalidArgument",
+                ("bad argument #1 to 'channel' (non-negative integer expected, got %s)"):format(tostring(cap))
+            ), 2
+        )
+    end
+    return setmetatable({ _channel = core.channel(cap) }, Channel)
+end
+
+function Channel:send(value)
+    if value == nil then
+        error(new_error("InvalidArgument", "bad argument #1 to 'send' (cannot send nil)"), 2)
+    end
+    local status = core.send(self._channel, value)
+    if status == "cancelled" then raise_cancelled() end
+    if status == "closed" then
+        error(new_error("ChannelClosed", "send on a closed channel"), 2)
+    end
+end
+
+function Channel:receive()
+    local status, value = core.receive(self._channel)
+    if status == "value" then return value end
+    if status == "cancelled" then raise_cancelled() end
+    error(new_error("ChannelClosed", "receive on a closed, empty channel"), 2)
+end
+
+function Channel:close()
+    core.close(self._channel)
+end
+
+function Channel:is_closed()
+    return core.is_closed(self._channel)
+end
+
+function Channel:iter()
+    local channel = self._channel
+    return function ()
+        local status, value = core.receive(channel)
+        if status == "value" then return value end
+        if status == "cancelled" then raise_cancelled() end
+        return nil
+    end
+end
+
+function Channel:debounce(ms)
+    check_ms(ms, 1, "debounce")
+    local source = self._channel
+    ---@type luastd.async.Channel
+    local out = async.channel(0)
+    async.launch(function ()
+        async.finally(function ()
+            while true do
+                local status, value = core.receive(source)
+                if status == "cancelled" then raise_cancelled() end
+                if status ~= "value" then return end
+                while true do
+                    local next_status, next_value = core.receive(source, ms)
+                    if next_status == "value" then
+                        value = next_value
+                    elseif next_status == "cancelled" then
+                        raise_cancelled()
+                    else
+                        out:send(value)
+                        if next_status == "closed" then return end
+                        break
+                    end
+                end
+            end
+        end, function () out:close() end)
+    end)
+    return out
+end
+
+-- Rate limiting.
+
+function async.debounce(ms, fn)
+    check_ms(ms, 1, "debounce")
+    check_fn(fn, 2, "debounce")
+    local scope = core.current()
+    ---@type { handle: any, started: boolean }?
+    local pending = nil
+    return function (...)
+        if pending and not pending.started then core.cancel(pending.handle) end
+        local args, state = pack(...), { started = false }
+        state.handle = core.spawn(scope, "launch", function ()
+            async.delay(ms)
+            state.started = true
+            fn(unpack(args, 1, args.n))
+        end)
+        pending = state
+        return wrap(state.handle)
+    end
+end
+
+function async.throttle(ms, fn)
+    check_ms(ms, 1, "throttle")
+    check_fn(fn, 2, "throttle")
+    local last = nil
+    return function (...)
+        local now = core.now_ms()
+        if last == nil or now - last >= ms then
+            last = now
+            return fn(...)
+        end
+    end
+end
+
+return async, pcall, xpcall

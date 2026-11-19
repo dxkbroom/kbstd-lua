@@ -24,6 +24,10 @@ const RUNTIME_DEFINITIONS: &[(&str, &str)] = &[
         "luastd/error.lua",
         include_str!("../definitions/luastd/error.lua"),
     ),
+    (
+        "luastd/async.lua",
+        include_str!("../definitions/luastd/async.lua"),
+    ),
     #[cfg(feature = "env")]
     (
         "luastd/env.lua",

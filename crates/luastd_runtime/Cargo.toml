@@ -19,7 +19,9 @@ luastd = { workspace = true }
 mlua = { workspace = true, features = ["async"] }
 serde_json = { workspace = true }
 sys_traits = { workspace = true }
-tokio = { workspace = true }
+# `sync` for Notify, `macros` for select! (cancellation, luastd.async).
+tokio = { workspace = true, features = ["macros", "sync"] }
+tokio-util = { workspace = true }
 
 [dev-dependencies]
 serde_json = { workspace = true }

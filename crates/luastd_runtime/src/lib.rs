@@ -42,12 +42,14 @@ pub mod permissions;
 mod prompt;
 mod runtime;
 mod sandbox;
+mod scheduler;
 
 pub use builder::{Builder, NoPermissions, WithPermissions};
 #[cfg(feature = "env")]
 pub use env::Env;
 pub use prompt::{PromptDecision, PromptRequest, Prompter};
 pub use runtime::Runtime;
+pub use scheduler::{cancel_jobs, cancellable};
 
 pub use deno_permissions;
 pub use luastd;

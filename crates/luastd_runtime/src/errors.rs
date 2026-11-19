@@ -7,6 +7,9 @@
 use mlua::{Function, IntoLua, Lua, MultiValue, Result, Table, Value};
 
 const METATABLE: &str = "luastd.Error";
+const CANCELLED: &str = "luastd.Cancelled";
+/// The kind of the cancellation sentinel; see [`cancelled`].
+pub const CANCELLED_KIND: &str = "Cancelled";
 
 /// A structured error, built in Rust and raised as a Lua table.
 #[derive(Clone, Debug)]
@@ -31,8 +34,17 @@ impl LuaErrorTable {
         self
     }
 
+    /// Cancellation of the calling coroutine (ADR 0005); raised as the
+    /// shared sentinel so the runtime's `pcall` lets it through.
+    pub fn cancelled() -> Self {
+        Self::new(CANCELLED_KIND, "")
+    }
+
     /// Build the table, with the shared `luastd.Error` metatable.
     pub fn into_table(self, lua: &Lua) -> Result<Table> {
+        if self.kind == CANCELLED_KIND {
+            return cancelled(lua);
+        }
         let table = lua.create_table()?;
         table.set("kind", self.kind)?;
         table.set("message", self.message)?;
@@ -48,6 +60,21 @@ impl IntoLua for LuaErrorTable {
     fn into_lua(self, lua: &Lua) -> Result<Value> {
         self.into_table(lua).map(Value::Table)
     }
+}
+
+/// The single cancellation value every luastd suspension point raises.
+///
+/// `pcall`/`xpcall` recognise it by identity and rethrow it (ADR 0005).
+pub fn cancelled(lua: &Lua) -> Result<Table> {
+    if let Ok(table) = lua.named_registry_value::<Table>(CANCELLED) {
+        return Ok(table);
+    }
+    let table = lua.create_table()?;
+    table.set("kind", CANCELLED_KIND)?;
+    table.set("message", "the coroutine was cancelled")?;
+    table.set_metatable(Some(metatable(lua)?))?;
+    lua.set_named_registry_value(CANCELLED, &table)?;
+    Ok(table)
 }
 
 fn metatable(lua: &Lua) -> Result<Table> {
