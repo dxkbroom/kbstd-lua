@@ -1,0 +1,28 @@
+[package]
+name = "luastd_runtime"
+description = "Embedding runtime for luastd: permission-checked effect modules and structured async."
+readme = "../../README.md"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+luastd = { workspace = true }
+mlua = { workspace = true }
+
+[features]
+# No default Lua version and no `vendored`: the host picks (AGENTS.md). These
+# only forward to mlua so the crate can be tested on its own.
+lua52 = ["mlua/lua52", "luastd/lua52"]
+lua53 = ["mlua/lua53", "luastd/lua53"]
+lua54 = ["mlua/lua54", "luastd/lua54"]
+lua55 = ["mlua/lua55", "luastd/lua55"]
+luajit = ["mlua/luajit", "luastd/luajit"]
+luajit52 = ["mlua/luajit52", "luastd/luajit52"]
+vendored = ["mlua/vendored", "luastd/vendored"]
+
+[lints]
+workspace = true

@@ -1,0 +1,34 @@
+[package]
+name = "luastd_lua"
+description = "luastd pure modules as a Lua C module (luaopen_luastd*), built by lux."
+readme = "../../README.md"
+publish = false
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+# lux copies target/<profile>/libluastd_lua.so to luastd.so ([build.modules]).
+crate-type = ["cdylib"]
+
+[dependencies]
+luastd = { workspace = true }
+# `module` is always on: `#[mlua::lua_module]` needs it, and the host
+# interpreter provides the Lua symbols. It conflicts with `vendored` and breaks
+# linking test binaries, which is why this crate is not a default member.
+mlua = { workspace = true, features = ["module"] }
+
+[features]
+# lux passes `--features <lua>` (jit and jit52 both map to `luajit`).
+lua52 = ["mlua/lua52"]
+lua53 = ["mlua/lua53"]
+lua54 = ["mlua/lua54"]
+lua55 = ["mlua/lua55"]
+luajit = ["mlua/luajit"]
+luajit52 = ["mlua/luajit52"]
+
+[lints]
+workspace = true

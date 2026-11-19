@@ -1,4 +1,4 @@
-//! The `kbstd.path` Lua module.
+//! The `luastd.path` Lua module.
 //!
 //! Wraps the lexical path operations from the `camino` crate. Construct paths
 //! with `path.new`; values are Lua userdata with immutable methods,
@@ -19,7 +19,7 @@ use crate::util::{bad_argument, string_argument};
 const EXTENSION_SEPARATOR_ERROR: &str =
     "invalid extension: extension cannot contain path separators";
 
-pub const TYPE_NAME: &str = "kbstd.path.Path";
+pub const TYPE_NAME: &str = "luastd.path.Path";
 
 /// A UTF-8 path exposed to Lua.
 #[derive(Clone, Debug)]
@@ -191,7 +191,7 @@ impl UserData for PathLua {
     }
 }
 
-/// Build the `kbstd.path` module table.
+/// Build the `luastd.path` module table.
 pub fn create_path_lib(lua: &Lua) -> LuaResult<Table> {
     let module = lua.create_table()?;
     module.set("new", lua.create_function(path_new)?)?;

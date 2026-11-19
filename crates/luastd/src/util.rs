@@ -31,7 +31,6 @@ pub fn string_argument(value: &Value, index: usize, name: &str, function: &str) 
 ///
 /// Whole-number floats are accepted, since LuaJIT represents every number as a
 /// double.
-#[expect(dead_code)]
 pub fn integer_argument(value: &Value, index: usize, name: &str, function: &str) -> Result<i64> {
     match value {
         Value::Integer(integer) => Ok(*integer),

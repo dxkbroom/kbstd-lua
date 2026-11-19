@@ -1,40 +1,26 @@
-[package]
-name = "kbstd-lua"
+[workspace]
+resolver = "3"
+members = ["crates/luastd", "crates/luastd_lua", "crates/luastd_runtime"]
+# luastd_lua forces mlua's `module` feature; keep it out of plain `cargo build`
+# and `cargo test` so feature unification does not leak `module` into test
+# binaries. lux builds it with `-p luastd_lua`.
+default-members = ["crates/luastd", "crates/luastd_runtime"]
+
+[workspace.package]
 version = "0.0.1"
+authors = ["Gerson Gallo <ggallovalle@gmail.com>"]
 edition = "2024"
 rust-version = "1.95"
-description = "KBroom Lua standard library, things I don't want to write twice in Lua."
-readme = "README.md"
-repository = "https://github.com/dxkbroom/kbstd-lua"
 license = "MIT"
-include = ["/Cargo.toml", "/Cargo.lock", "/LICENSE", "/README.md", "/CHANGELOG.md"]
+repository = "https://github.com/dxkbroom/luastd"
 
-[lib]
-crate-type = ["cdylib"]
-name = "kbstd"
-path = "src/lib.rs"
-
-[dependencies]
+[workspace.dependencies]
 camino = "1"
-mlua = {
-  version = "0.11",
-  features = [
-    "module",
-  ]
-}
+luastd = { path = "crates/luastd", version = "0.0.1" }
+luastd_runtime = { path = "crates/luastd_runtime", version = "0.0.1" }
+# Never enable a Lua version, `vendored` or `module` here: only leaf crates pick
+# them (see AGENTS.md).
+mlua = "0.11"
 
-[dev-dependencies]
-tempfile = "3"
-
-[features]
-default = ["luajit"]
-lua51 = ["mlua/lua51"]
-lua52 = ["mlua/lua52"]
-lua53 = ["mlua/lua53"]
-lua54 = ["mlua/lua54"]
-lua55 = ["mlua/lua55"]
-luajit = ["mlua/luajit"]
-luajit52 = ["mlua/luajit52"]
-
-[lints.rust]
+[workspace.lints.rust]
 unsafe_code = "forbid"

@@ -1,0 +1,28 @@
+[package]
+name = "luastd"
+description = "Pure (IO-free) Lua standard library modules written in Rust."
+readme = "../../README.md"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+camino = { workspace = true }
+mlua = { workspace = true }
+
+[features]
+# No default Lua version: the leaf crate picks exactly one. These only forward
+# to mlua so `cargo test -p luastd --features luajit52` works.
+lua52 = ["mlua/lua52"]
+lua53 = ["mlua/lua53"]
+lua54 = ["mlua/lua54"]
+lua55 = ["mlua/lua55"]
+luajit = ["mlua/luajit"]
+luajit52 = ["mlua/luajit52"]
+vendored = ["mlua/vendored"]
+
+[lints]
+workspace = true
