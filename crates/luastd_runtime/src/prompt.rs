@@ -22,7 +22,7 @@ use deno_permissions::prompter::{
 use deno_permissions::{PermissionState, PermissionsContainer};
 use mlua::Lua;
 
-use crate::errors::LuaErrorTable;
+use crate::errors::LuaError;
 
 /// What a check asks the host to decide.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -131,8 +131,8 @@ impl Descriptor for EnvDescriptor<'_> {
     }
 }
 
-fn denied<D: Descriptor>(descriptor: &D, message: String) -> LuaErrorTable {
-    let error = LuaErrorTable::new("PermissionDenied", message).with("permission", D::PERMISSION);
+fn denied<D: Descriptor>(descriptor: &D, message: String) -> LuaError {
+    let error = LuaError::new("PermissionDenied", message).with("permission", D::PERMISSION);
     match descriptor.target() {
         Some(target) => error.with("target", target),
         None => error,
@@ -152,7 +152,7 @@ fn question<D: Descriptor>(descriptor: &D) -> String {
 pub(crate) fn check_now<D: Descriptor>(
     container: &PermissionsContainer,
     descriptor: D,
-) -> Result<(), LuaErrorTable> {
+) -> Result<(), LuaError> {
     if descriptor.query(container) == PermissionState::Prompt {
         return Err(denied(
             &descriptor,
@@ -172,7 +172,7 @@ pub(crate) async fn check<D: Descriptor>(
     lua: &Lua,
     container: &PermissionsContainer,
     descriptor: D,
-) -> Result<(), LuaErrorTable> {
+) -> Result<(), LuaError> {
     if descriptor.query(container) == PermissionState::Prompt {
         let prompter = lua
             .app_data_ref::<PrompterSlot>()

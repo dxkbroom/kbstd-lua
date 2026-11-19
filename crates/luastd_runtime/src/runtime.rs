@@ -37,6 +37,7 @@ impl Runtime {
         effects: &[(&'static str, EffectLoader)],
     ) -> Result<Self> {
         let lua = sandbox::new_lua(options)?;
+        crate::errors::install(&lua)?;
         if permissions.is_some() {
             // deno's default prompter blocks on the TTY (ADR 0004).
             install_global_prompter();

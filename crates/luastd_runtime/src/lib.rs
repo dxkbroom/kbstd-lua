@@ -46,6 +46,7 @@ mod sandbox;
 pub use builder::{Builder, NoPermissions, WithPermissions};
 #[cfg(feature = "env")]
 pub use env::Env;
+pub use errors::LuaError;
 pub use prompt::{PromptDecision, PromptRequest, Prompter};
 pub use runtime::Runtime;
 
