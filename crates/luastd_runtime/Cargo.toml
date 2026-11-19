@@ -8,13 +8,27 @@ readme = "../../README.md"
 repository.workspace = true
 license.workspace = true
 
+[[example]]
+name = "hello"
+required-features = ["luajit52", "vendored"]
+
 [dependencies]
+deno_permissions = { workspace = true }
 luastd = { workspace = true }
-mlua = { workspace = true }
+# `async` is an API feature, not a Lua version: hosts still pick the version.
+mlua = { workspace = true, features = ["async"] }
+serde_json = { workspace = true }
+sys_traits = { workspace = true }
+tokio = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+tempfile = { workspace = true }
+tokio = { workspace = true, features = ["time"] }
 
 [features]
 # No default Lua version and no `vendored`: the host picks (AGENTS.md). These
-# only forward to mlua so the crate can be tested on its own.
+# only forward to mlua so the crate can be tested and its example run.
 lua52 = ["luastd/lua52", "mlua/lua52"]
 lua53 = ["luastd/lua53", "mlua/lua53"]
 lua54 = ["luastd/lua54", "mlua/lua54"]
@@ -23,5 +37,7 @@ luajit = ["luastd/luajit", "mlua/luajit"]
 luajit52 = ["luastd/luajit52", "mlua/luajit52"]
 vendored = ["luastd/vendored", "mlua/vendored"]
 
-[lints]
-workspace = true
+# Not `workspace = true`: `Builder::debug` needs one audited `unsafe` call, so
+# this crate denies `unsafe_code` instead of forbidding it.
+[lints.rust]
+unsafe_code = "deny"
