@@ -36,18 +36,18 @@ if vim.fn.executable(luafmt) == 1 then
     end)
 end
 
--- luastd itself, for Neovim's LuaJIT: the user config installs it from the
--- remote (github.com/dxkbroom/kbstd-lua, now dxkbroom/luastd) as the lazy
--- plugin `kbstd-lua`. In this checkout, point that plugin at the checkout and
--- load `require("luastd")` / `require("luastd.<module>")` from the cdylib built
--- here. Build it with `mise run nvim:build` (luajit, not luajit52: Neovim's
--- LuaJIT has no 5.2 compat) and restart Neovim after a rebuild.
+-- luastd itself, for Neovim's LuaJIT, as a local lazy plugin rooted at this
+-- checkout: no user config needed. `require("luastd")` and
+-- `require("luastd.<module>")` resolve from the cdylib built here, never from a
+-- copy installed from the remote. Build it with `mise run nvim:build` (or
+-- `:Lazy build luastd`; luajit, not luajit52: Neovim's LuaJIT has no 5.2
+-- compat) and restart Neovim after a rebuild.
 -- `:Luastd [module] [example]` lists and runs the examples in `.nvim/`.
 ---@type LazyPluginSpec
 local Luastd = {
-    url = "https://github.com/dxkbroom/kbstd-lua.git",
-    name = "kbstd-lua",
+    name = "luastd",
     dir = root,
+    lazy = false,
     build = function ()
         local result = vim.system({ "mise", "run", "nvim:build" }, { cwd = root, text = true }):wait()
         if result.code ~= 0 then
