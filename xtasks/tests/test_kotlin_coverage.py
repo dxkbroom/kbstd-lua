@@ -10,7 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "lib"))
 
-from kotlin_coverage import build_report, has_gaps, markdown_report, parse_port
+from kotlin_coverage import build_report, has_gaps, markdown_report, parse_port, render_kotlin_stub
 
 SOURCE = '''class ExampleTest {
     @Test
@@ -177,6 +177,21 @@ class InheritedTest : InheritedTestBase()
         self.assertEqual(["testInherited"], [test["name"] for test in inherited["tests"]])
         self.assertEqual(3, report["summary"]["classes"])
         self.assertTrue(has_gaps(report))
+
+    def test_render_stub_marks_each_kotlin_test_todo(self) -> None:
+        stub = render_kotlin_stub(
+            "ExampleTest",
+            "kotlinx-coroutines-core/common/test/ExampleTest.kt",
+            "1.11.0",
+            ["testOne", "testTwo"],
+        )
+        target = self.root / "Generated.lua"
+        target.write_text(stub)
+        ports, issues = parse_port(target)
+        self.assertEqual([], issues)
+        self.assertEqual(["ExampleTest"], [port.cls for port in ports])
+        self.assertEqual(["testOne", "testTwo"], [test.name for test in ports[0].tests])
+        self.assertTrue(all(test.status == "todo" and test.reason for test in ports[0].tests))
 
 
 if __name__ == "__main__":
