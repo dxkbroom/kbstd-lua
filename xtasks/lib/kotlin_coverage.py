@@ -197,20 +197,19 @@ def kotlin_test_sources(checkout: Path, tag: str) -> tuple[list[tuple[str, str |
     return sources, issues
 
 
-def kotlin_test_classes(source: str) -> list[tuple[str, list[str]]]:
-    """Associate @Test methods with concrete classes, including inherited test methods."""
+def kotlin_class_test_methods(
+    source: str,
+    cls: str,
+    abstract_methods: dict[str, list[str]] | None = None,
+) -> list[str]:
+    """Return a class's @Test methods, including methods inherited from abstract bases."""
     declarations = list(KOTLIN_CLASS_DECLARATION.finditer(source))
-    if not declarations:
-        return []
-
     direct_tests: dict[str, list[str]] = {decl.group("name"): [] for decl in declarations}
     parents: dict[str, str | None] = {}
-    abstract: dict[str, bool] = {}
     for declaration in declarations:
         name = declaration.group("name")
         parent = re.search(r":\s*([A-Za-z_]\w*)", declaration.group("header"))
         parents[name] = parent.group(1) if parent else None
-        abstract[name] = "abstract" in declaration.group("modifiers").split()
 
     for test in KOTLIN_TEST.finditer(source):
         owners = [decl for decl in declarations if decl.start() < test.start()]
@@ -224,13 +223,24 @@ def kotlin_test_classes(source: str) -> list[tuple[str, list[str]]]:
         parent = parents[name]
         if parent in direct_tests:
             result.extend(inherited_tests(parent, visiting | {name}))
-        return result
+        elif abstract_methods and parent in abstract_methods:
+            result.extend(abstract_methods[parent])
+        return list(dict.fromkeys(result))
 
+    return inherited_tests(cls) if cls in direct_tests else []
+
+
+def kotlin_test_classes(
+    source: str,
+    abstract_methods: dict[str, list[str]] | None = None,
+) -> list[tuple[str, list[str]]]:
+    """Associate @Test methods with concrete classes, including inherited methods."""
+    declarations = list(KOTLIN_CLASS_DECLARATION.finditer(source))
     result: list[tuple[str, list[str]]] = []
     for declaration in declarations:
         name = declaration.group("name")
-        test_names = inherited_tests(name)
-        if test_names and not abstract[name]:
+        test_names = kotlin_class_test_methods(source, name, abstract_methods)
+        if test_names and "abstract" not in declaration.group("modifiers").split():
             result.append((name, test_names))
     return result
 
@@ -301,6 +311,12 @@ def build_report(
     classes: list[dict[str, object]] = []
     issues: list[Issue] = []
     seen_classes: dict[str, str] = {}
+    inventory: list[tuple[str, str | None]] = []
+    abstract_methods: dict[str, list[str]] = {}
+    if inventory_tag is not None:
+        inventory, inventory_issues = kotlin_test_sources(checkout, inventory_tag)
+        issues.extend(inventory_issues)
+        abstract_methods = inherited_test_methods(inventory)
 
     for file in sorted(files):
         parsed, parse_issues = parse_port(file)
@@ -339,7 +355,7 @@ def build_report(
                         file=lua_file,
                         cls=port.cls,
                     ))
-                source_tests = KOTLIN_TEST.findall(source)
+                source_tests = kotlin_class_test_methods(source, port.cls, abstract_methods)
 
             mapped: dict[str, TestPort] = {}
             for test in port.tests:
@@ -397,14 +413,11 @@ def build_report(
             })
 
     if inventory_tag is not None:
-        inventory, inventory_issues = kotlin_test_sources(checkout, inventory_tag)
-        issues.extend(inventory_issues)
         inventory_classes: set[str] = set()
-        abstract_methods = inherited_test_methods(inventory)
         for path, source in inventory:
             if source is None:
                 continue
-            test_classes = kotlin_test_classes(source)
+            test_classes = kotlin_test_classes(source, abstract_methods)
             if not test_classes and KOTLIN_TEST.search(source) and not KOTLIN_CLASS_DECLARATION.search(source):
                 issues.append(Issue(
                     "kotlin-class-missing",
@@ -412,13 +425,6 @@ def build_report(
                     file=path,
                 ))
             for cls, test_names in test_classes:
-                declaration = next(
-                    (decl for decl in KOTLIN_CLASS_DECLARATION.finditer(source) if decl.group("name") == cls),
-                    None,
-                )
-                parent = re.search(r":\s*([A-Za-z_]\w*)", declaration.group("header")) if declaration else None
-                if parent and parent.group(1) in abstract_methods:
-                    test_names = list(dict.fromkeys([*abstract_methods[parent.group(1)], *test_names]))
                 if cls in seen_classes:
                     continue
                 if cls in inventory_classes:
