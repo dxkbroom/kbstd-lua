@@ -1,6 +1,6 @@
 -- A busted-shaped harness for specs that need luastd_runtime (async, effect
 -- modules). busted itself needs `io` and `lfs`, which the sandbox removes.
--- Supports describe/it, before_each, and the luassert subset used here.
+-- Supports describe/it/pending, before_each, and the luassert subset used here.
 -- Each `it` runs as plain code in the spec's coroutine, so `---@async`
 -- functions can be called directly.
 
@@ -30,6 +30,13 @@ local function it(name, body)
         end
     end
     table.insert(tests, { name = table.concat(prefix, " ") .. " " .. name, body = body, before = before })
+end
+
+--- Declare a test that is not run; it is counted as skipped. As in busted, a
+--- function argument is ignored. Kotlin ports put the reason in a
+--- `-- n/a:` or `-- todo:` comment above it (AGENTS.md).
+local function pending(name)
+    table.insert(tests, { name = table.concat(prefix, " ") .. " " .. name, pending = true })
 end
 
 local function fail(message, level)
@@ -101,28 +108,35 @@ local assert_table = setmetatable(check, {
 -- rawset keeps the analyzer on busted's own types for these globals.
 rawset(_G, "describe", describe)
 rawset(_G, "it", it)
+rawset(_G, "pending", pending)
 rawset(_G, "before_each", before_each)
 rawset(_G, "assert", assert_table)
 
---- Run every registered test; returns passed count and failure messages.
+--- Run every registered test; returns passed count, failure messages and
+--- the number of pending tests.
 ---@return integer passed
 ---@return string[] failures
+---@return integer skipped
 local function run()
-    local passed, failures = 0, {}
+    local passed, failures, skipped = 0, {}, 0
     for _, test in ipairs(tests) do
-        local ok, err = pcall(function ()
-            for _, fn in ipairs(test.before) do
-                fn()
-            end
-            test.body()
-        end)
-        if ok then
-            passed = passed + 1
+        if test.pending then
+            skipped = skipped + 1
         else
-            table.insert(failures, test.name .. ": " .. tostring(err))
+            local ok, err = pcall(function ()
+                for _, fn in ipairs(test.before) do
+                    fn()
+                end
+                test.body()
+            end)
+            if ok then
+                passed = passed + 1
+            else
+                table.insert(failures, test.name .. ": " .. tostring(err))
+            end
         end
     end
-    return passed, failures
+    return passed, failures, skipped
 end
 
 return run

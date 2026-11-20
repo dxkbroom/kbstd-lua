@@ -571,8 +571,10 @@ impl Channel {
     }
 }
 
+/// `ms` as a `Duration`; huge or infinite values saturate instead of
+/// panicking, and tokio treats a deadline past its range as "never".
 fn duration(ms: f64) -> Duration {
-    Duration::from_secs_f64(ms.max(0.0) / 1000.0)
+    Duration::try_from_secs_f64(ms.max(0.0) / 1000.0).unwrap_or(Duration::MAX)
 }
 
 fn core(lua: &Lua) -> Result<Table> {
