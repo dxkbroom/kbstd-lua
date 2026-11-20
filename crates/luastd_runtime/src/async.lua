@@ -65,12 +65,52 @@ end
 
 local async = {}
 
---- Job, Deferred and Scope share one implementation over a core handle.
-local Node = {}
-Node.__index = Node
+-- Jobs own lifetime; scopes expose a context and launch child jobs.
+local Job = {}
+Job.__index = Job
+local Scope = {}
+Scope.__index = Scope
 
-local function wrap(handle)
-    return setmetatable({ _handle = handle }, Node)
+local function wrap_job(handle)
+    return setmetatable({ _handle = handle }, Job)
+end
+
+local function wrap_scope(handle)
+    return setmetatable({ _handle = handle }, Scope)
+end
+
+local coroutine_contexts = setmetatable({}, { __mode = "k" })
+local coroutine_names = setmetatable({}, { __mode = "k" })
+
+local CoroutineContext = {}
+CoroutineContext.__index = CoroutineContext
+CoroutineContext.__newindex = function () error("CoroutineContext is immutable", 2) end
+local CoroutineName = {}
+CoroutineName.__index = function (self, key)
+    if key == "name" then return coroutine_names[self] end
+    return CoroutineName[key]
+end
+CoroutineName.__newindex = function () error("CoroutineName is immutable", 2) end
+CoroutineName.__tostring = function (self)
+    return ("CoroutineName(%s)"):format(coroutine_names[self])
+end
+
+local function make_context(job, name)
+    local context = setmetatable({}, CoroutineContext)
+    coroutine_contexts[context] = { job = job, name = name }
+    return context
+end
+
+function CoroutineContext:job()
+    return coroutine_contexts[self].job
+end
+
+function CoroutineContext:coroutine_name()
+    return coroutine_contexts[self].name
+end
+
+function Scope:coroutine_context()
+    return make_context(wrap_job(self._handle), core.coroutine_name(self._handle))
 end
 
 local function run_cancel_handlers(handle)
@@ -92,71 +132,85 @@ local function finish(handle, result)
     return status, err
 end
 
--- The main function of every job's coroutine.
+-- The main function of every job's coroutine; the callback receives a scope.
 core.set_runner(function (handle, body)
     local _, cancelled = core.state(handle)
     local result
     if cancelled then
         result = pack(false, CANCELLED) -- launched into a finished or cancelled scope
     else
-        result = pack(raw_pcall(body, wrap(handle)))
+        result = pack(raw_pcall(body, wrap_scope(handle)))
     end
     finish(handle, result)
 end)
 
-local function run_scope(kind, body, ms)
-    local handle = core.enter(kind)
+local function run_scope(kind, body, ms, coroutine_name)
+    local handle = core.enter(kind, coroutine_name)
     if ms then core.timeout(handle, ms) end
-    local result = pack(raw_pcall(body, wrap(handle)))
+    local result = pack(raw_pcall(body, wrap_scope(handle)))
     local status, err = finish(handle, result)
     if status == "ok" then return unpack(result, 2, result.n) end
     if status == "failed" then error(err, 0) end
     if status == "timeout" then
-        error(new_error("Timeout", ("Timed out waiting for %s ms"):format(tostring(ms))), 0)
+        local name = core.coroutine_name(handle)
+        local message = ("Timed out waiting for %s ms"):format(tostring(ms))
+        if name then
+            message = ('Coroutine "%s" %s'):format(name, message:sub(1, 1):lower() .. message:sub(2))
+        end
+        error(new_error("Timeout", message), 0)
     end
     raise_cancelled()
 end
 
-function Node:launch(body)
+function Scope:launch(body)
     check_fn(body, 1, "launch")
-    return wrap(core.spawn(self._handle, "launch", body))
+    return wrap_job(core.spawn(self._handle, "launch", body))
 end
 
-function Node:async(body)
+function Scope:async(body)
     check_fn(body, 1, "async")
-    return wrap(core.spawn(self._handle, "async", body))
+    return wrap_job(core.spawn(self._handle, "async", body))
 end
 
-function Node:cancel()
+function Job:cancel()
     core.cancel(self._handle)
 end
 
-function Node:is_active()
+function Job:is_active()
     local active = core.state(self._handle)
     return active
 end
 
-function Node:is_cancelled()
+function Job:is_cancelled()
     local _, cancelled = core.state(self._handle)
     return cancelled
 end
 
-function Node:is_completed()
+function Job:is_completed()
     local _, _, done = core.state(self._handle)
     return done
 end
 
-function Node:on_cancel(handler)
+function Job:on_cancel(handler)
     check_fn(handler, 1, "on_cancel")
     core.on_cancel(self._handle, handler)
 end
 
+-- Keep the existing scope conveniences while exposing the distinct Job
+-- through `scope:coroutine_context():job()`.
+Scope.cancel = Job.cancel
+Scope.is_active = Job.is_active
+Scope.is_cancelled = Job.is_cancelled
+Scope.is_completed = Job.is_completed
+Scope.on_cancel = Job.on_cancel
+
 -- Waiting is prefix-only (`async.join`, `async.await`, `async.try_await`;
--- ADR 0007): Job, Deferred and Scope share `Node`, so methods would also
--- appear on scopes.
+-- ADR 0007). Scope is accepted for compatibility, though context:job() is the
+-- explicit Job handle in the Kotlin-shaped model.
 
 local function check_job(value, name)
-    if getmetatable(value) ~= Node then
+    local mt = getmetatable(value)
+    if mt ~= Job and mt ~= Scope then
         error(
             new_error("InvalidArgument", ("bad argument #1 to '%s' (job expected, got %s)"):format(name, type(value))),
             3
@@ -212,12 +266,12 @@ end
 
 function async.launch(body)
     check_fn(body, 1, "launch")
-    return wrap(core.spawn(core.current(), "launch", body))
+    return wrap_job(core.spawn(core.current(), "launch", body))
 end
 
 async["async"] = function (body)
     check_fn(body, 1, "async")
-    return wrap(core.spawn(core.current(), "async", body))
+    return wrap_job(core.spawn(core.current(), "async", body))
 end
 
 function async.scope(body)
@@ -251,6 +305,40 @@ function async.with_timeout(ms, body)
     return run_scope("timeout", body, ms)
 end
 
+function async.coroutine_name(name)
+    if type(name) ~= "string" then
+        error(new_error("InvalidArgument", "bad argument #1 to 'coroutine_name' (string expected)"), 2)
+    end
+    local element = setmetatable({}, CoroutineName)
+    coroutine_names[element] = name
+    return element
+end
+
+function async.context(...)
+    local name
+    for i = 1, select("#", ...) do
+        local element = select(i, ...)
+        if getmetatable(element) ~= CoroutineName then
+            error(new_error("InvalidArgument", "context elements must be created with async.coroutine_name"), 2)
+        end
+        name = coroutine_names[element]
+    end
+    return make_context(nil, name)
+end
+
+function async.with_context(context, body)
+    if getmetatable(context) ~= CoroutineContext then
+        error(new_error("InvalidArgument", "bad argument #1 to 'with_context' (CoroutineContext expected)"), 2)
+    end
+    check_fn(body, 2, "with_context")
+    return run_scope("scope", body, nil, coroutine_contexts[context].name)
+end
+
+function async.current_context()
+    local job = wrap_job(core.current())
+    return make_context(job, core.coroutine_name(job._handle))
+end
+
 function async.delay(ms)
     check_ms(ms, 1, "delay")
     if not core.delay(ms) then raise_cancelled() end
@@ -265,7 +353,7 @@ function async.is_active()
 end
 
 function async.current()
-    return wrap(core.current())
+    return wrap_scope(core.current())
 end
 
 function async.is_cancellation(err)
@@ -421,7 +509,7 @@ function async.debounce(ms, fn)
             fn(unpack(args, 1, args.n))
         end)
         pending = state
-        return wrap(state.handle)
+        return wrap_job(state.handle)
     end
 end
 

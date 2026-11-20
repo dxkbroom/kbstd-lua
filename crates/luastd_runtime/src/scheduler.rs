@@ -76,6 +76,8 @@ impl Status {
 pub(crate) struct Node {
     kind: Kind,
     parent: Option<Weak<Node>>,
+    /// Coroutine name inherited from the parent context, if any.
+    coroutine_name: Option<String>,
     token: CancellationToken,
     /// Running child jobs; each removes itself when it completes.
     children: RefCell<Vec<Rc<Node>>>,
@@ -89,10 +91,18 @@ pub(crate) struct Node {
 }
 
 impl Node {
-    fn new(kind: Kind, parent: Option<&Rc<Node>>, token: CancellationToken) -> Rc<Self> {
+    fn new(
+        kind: Kind,
+        parent: Option<&Rc<Node>>,
+        token: CancellationToken,
+        coroutine_name: Option<String>,
+    ) -> Rc<Self> {
+        let coroutine_name =
+            coroutine_name.or_else(|| parent.and_then(|parent| parent.coroutine_name.clone()));
         Rc::new(Self {
             kind,
             parent: parent.map(Rc::downgrade),
+            coroutine_name,
             token,
             children: RefCell::default(),
             child_failure: RefCell::default(),
@@ -159,7 +169,7 @@ pub(crate) struct Scheduler {
 impl Scheduler {
     fn new() -> Self {
         Self {
-            root: RefCell::new(Node::new(Kind::Root, None, CancellationToken::new())),
+            root: RefCell::new(Node::new(Kind::Root, None, CancellationToken::new(), None)),
             stacks: RefCell::default(),
             runner: RefCell::default(),
             running: Cell::new(false),
@@ -289,7 +299,7 @@ pub(crate) fn install(lua: &Lua) -> Result<Table> {
 /// Start a fresh root for one `Runtime::run`.
 pub(crate) fn open_root(lua: &Lua) -> Result<Rc<Node>> {
     let s = scheduler(lua)?;
-    let root = Node::new(Kind::Root, None, CancellationToken::new());
+    let root = Node::new(Kind::Root, None, CancellationToken::new(), None);
     *s.root.borrow_mut() = root.clone();
     s.running.set(true);
     Ok(root)
@@ -329,7 +339,12 @@ fn spawn(lua: &Lua, parent: Rc<Node>, kind: Kind, body: Function) -> Result<AnyU
         .borrow()
         .clone()
         .ok_or_else(|| mlua::Error::runtime("luastd.async: runner not set"))?;
-    let child = Node::new(kind, Some(&parent), parent.token.child_token());
+    let child = Node::new(
+        kind,
+        Some(&parent),
+        parent.token.child_token(),
+        parent.coroutine_name.clone(),
+    );
     if parent.is_done() {
         // A finished scope cannot own new work (as in kotlinx.coroutines).
         child.token.cancel();
@@ -618,15 +633,19 @@ fn core(lua: &Lua) -> Result<Table> {
     )?;
     core.set(
         "enter",
-        lua.create_function(|lua, name: String| {
+        lua.create_function(|lua, (name, coroutine_name): (String, Option<String>)| {
             let s = scheduler(lua)?;
             let key = thread_key(lua);
             let parent = s.current_node(key);
             let token = s.current_token(key).child_token();
-            let scope = Node::new(kind(&name)?, Some(&parent), token);
+            let scope = Node::new(kind(&name)?, Some(&parent), token, coroutine_name);
             s.push(key, Entry::Node(scope.clone()));
             handle(lua, scope)
         })?,
+    )?;
+    core.set(
+        "coroutine_name",
+        lua.create_function(|_, ud: AnyUserData| Ok(node(&ud)?.coroutine_name.clone()))?,
     )?;
     core.set(
         "timeout",
