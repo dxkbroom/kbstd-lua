@@ -151,30 +151,61 @@ function Node:on_cancel(handler)
     core.on_cancel(self._handle, handler)
 end
 
-function Node:join()
-    if not core.join(self._handle) then raise_cancelled() end
+-- Waiting is prefix-only (`async.join`, `async.await`, `async.try_await`;
+-- ADR 0007): Job, Deferred and Scope share `Node`, so methods would also
+-- appear on scopes.
+
+local function check_job(value, name)
+    if getmetatable(value) ~= Node then
+        error(
+            new_error("InvalidArgument", ("bad argument #1 to '%s' (job expected, got %s)"):format(name, type(value))),
+            3
+        )
+    end
 end
 
-function Node:await()
-    if not core.join(self._handle) then raise_cancelled() end
-    local status, value = core.result(self._handle)
-    if status == "ok" then return unpack(value, 2, value.n) end
-    if status == "failed" then error(value, 0) end
-    error(new_error("JobCancelled", "the awaited job was cancelled"), 2)
+-- Wait for `job`; a cancelled caller raises the cancellation, even when the
+-- job has already finished (every wait is a cancellation point).
+local function wait(job)
+    if not core.join(job._handle) then raise_cancelled() end
+end
+
+-- `true, values...` or `false, err` for a finished job.
+local function outcome(job)
+    local status, value = core.result(job._handle)
+    if status == "ok" then return true, unpack(value, 2, value.n) end
+    if status == "failed" then return false, value end
+    return false, new_error("JobCancelled", "the awaited job was cancelled")
+end
+
+local function raise_outcome(ok, ...)
+    if not ok then error((...), 0) end
+    return ...
 end
 
 function async.join(job)
-    Node.join(job)
+    check_job(job, "join")
+    wait(job)
 end
 
 function async.await(deferred)
-    return Node.await(deferred)
+    check_job(deferred, "await")
+    wait(deferred)
+    return raise_outcome(outcome(deferred))
+end
+
+function async.try_await(deferred)
+    check_job(deferred, "try_await")
+    wait(deferred)
+    return outcome(deferred)
 end
 
 function async.await_all(...)
     local deferreds, values = pack(...), {}
     for i = 1, deferreds.n do
-        values[i] = (Node.await(deferreds[i]))
+        check_job(deferreds[i], "await_all")
+        wait(deferreds[i])
+        values[i] = (raise_outcome(outcome(deferreds[i])))
     end
     return unpack(values, 1, deferreds.n)
 end
@@ -192,6 +223,12 @@ end
 function async.scope(body)
     check_fn(body, 1, "scope")
     return run_scope("scope", body)
+end
+
+function async.try_scope(body)
+    check_fn(body, 1, "try_scope")
+    -- The module's `pcall` rethrows cancellation (ADR 0005).
+    return pcall(run_scope, "scope", body)
 end
 
 function async.supervisor_scope(body)

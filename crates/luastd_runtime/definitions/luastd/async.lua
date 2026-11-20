@@ -18,7 +18,7 @@ local async = {}
 ---@class luastd.TimeoutError: luastd.Error
 ---@field kind "Timeout"
 
---- Error raised by `Deferred:await` when the job was cancelled; catchable.
+--- Error raised by `async.await` when the job was cancelled; catchable.
 ---@class luastd.JobCancelledError: luastd.Error
 ---@field kind "JobCancelled"
 
@@ -64,23 +64,12 @@ function Scope:is_completed() end
 function Scope:on_cancel(handler) end
 
 --- A handle to a launched coroutine; also the scope its body receives.
+--- Wait for it with `async.join(job)`.
 ---@class luastd.async.Job: luastd.async.Scope
-local Job = {}
 
---- Wait until the job and its children have finished, however they ended.
----@async
-function Job:join() end
-
---- A job that produces the values `T...`, the body's return values; `await`
---- returns them all.
+--- A job that produces the values `T...`, the body's return values; collect
+--- them with `async.await(d)` or `async.try_await(d)`.
 ---@class luastd.async.Deferred<T...>: luastd.async.Job
-local Deferred = {}
-
---- Wait for the value. Re-raises the job's error; raises `JobCancelled` when
---- the job was cancelled.
----@async
----@return T...
-function Deferred:await() end
 
 --- Launch `body` as a child of the current scope.
 ---
@@ -90,23 +79,56 @@ function Deferred:await() end
 ---@return luastd.async.Job
 function async.launch(body) end
 
---- Start `body` as a child of the current scope; collect it with `await`.
+--- Start `body` as a child of the current scope; collect it with `async.await`.
 ---@generic T...
 ---@param body fun(scope: luastd.async.Scope): T...
 ---@return luastd.async.Deferred<T...>
 function async.async(body) end
 
---- Prefix form of `job:join()`.
+--- Wait until `job` and its children have finished, however they ended; the
+--- canonical (and only) way to wait for a job. It never raises the job's
+--- failure, so there is no `try_join`.
+---
+--- Like every suspension point, it raises the cancellation error when the
+--- caller is cancelled, even if `job` has already finished.
 ---@async
 ---@param job luastd.async.Job
 function async.join(job) end
 
---- Prefix form of `deferred:await()`: every value the body returned.
+--- Wait for `deferred` and return every value its body returned; the
+--- canonical way to collect a value. Re-raises the job's failure, and raises
+--- `JobCancelled` when the job was cancelled. To handle the failure as a value
+--- use `async.try_await`.
+---
+--- A failing child of a (non-supervisor) scope also cancels that scope, so
+--- awaiting it from the same scope raises the cancellation instead, which no
+--- `pcall` or `try_*` catches (ADR 0005). Run the work in its own scope to
+--- recover from it:
+---
+--- ```lua
+--- local ok, orders = async.try_scope(function () return api.orders(id) end)
+--- if not ok then log(orders.kind) end -- `orders` is the error here
+--- ```
 ---@async
 ---@generic T...
 ---@param deferred luastd.async.Deferred<T...>
 ---@return T...
 function async.await(deferred) end
+
+--- `try_*` form of `async.await`: `true` and the body's values, or `false`
+--- and the job's failure (`JobCancelled` when the job was cancelled) instead
+--- of raising it.
+---
+--- The caller's own cancellation is not caught (ADR 0005): when the caller is
+--- cancelled, including by the awaited child failing in the caller's scope,
+--- the cancellation propagates and nothing is returned. Use `async.try_scope`
+--- to contain such a child.
+---@async
+---@generic T...
+---@param deferred luastd.async.Deferred<T...>
+---@return_overload true, T...
+---@return_overload false, luastd.Error
+function async.try_await(deferred) end
 
 --- Await each deferred in argument order and return the first value of each,
 --- so there is one result per argument even when a body returns several.
@@ -118,11 +140,30 @@ function async.await_all(...) end
 
 --- Run `body` in a new scope and wait for its children. A failing child
 --- cancels the scope; its error is raised here. Returns the body's values.
+--- The canonical form; `async.try_scope` returns the failure instead.
 ---@async
 ---@generic T...
 ---@param body fun(scope: luastd.async.Scope): T...
 ---@return T...
 function async.scope(body) end
+
+--- `try_*` form of `async.scope`: `true` and the body's values, or `false`
+--- and the failure of the body or of a child, instead of raising it. The
+--- scope contains the failure: a failing child cancels only this scope and
+--- its other children, never the caller's scope, so the caller continues.
+---
+--- ```lua
+--- local ok, orders = async.try_scope(function () return api.orders(id) end)
+--- ```
+---
+--- Cancellation is not caught (ADR 0005): when the caller is cancelled, or
+--- the body cancels its own scope, the cancellation propagates.
+---@async
+---@generic T...
+---@param body fun(scope: luastd.async.Scope): T...
+---@return_overload true, T...
+---@return_overload false, luastd.Error
+function async.try_scope(body) end
 
 --- Like `scope`, but children fail independently of each other and the scope.
 ---@async
@@ -147,7 +188,10 @@ function async.with_timeout(ms, body) end
 ---@param ms number
 function async.delay(ms) end
 
---- Let other coroutines run; a cancellation point.
+--- Let other coroutines run; a cancellation point. It guarantees that other
+--- ready coroutines get a turn, not in which order: it is tokio's
+--- `yield_now`, which also runs coroutines woken during the same round (such as
+--- the waiters of a job that just finished) before the caller resumes.
 ---@async
 function async.yield() end
 

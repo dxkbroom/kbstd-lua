@@ -30,10 +30,10 @@ describe("AsyncTest", function ()
             end)
             t:expect(2)
             assert.is_true(d:is_active())
-            assert.is_equal(42, d:await())
+            assert.is_equal(42, async.await(d))
             assert.is_true(not d:is_active())
             t:expect(4)
-            assert.is_equal(42, d:await()) -- second await -- same result
+            assert.is_equal(42, async.await(d)) -- second await -- same result
             t:finish(5)
         end)
     )
@@ -50,7 +50,7 @@ describe("AsyncTest", function ()
                 error(luastd_test.TestException())
             end)
             t:expect(2)
-            d:await() -- will throw TestException
+            async.await(d) -- will throw TestException
         end)
     )
 
@@ -69,7 +69,7 @@ describe("AsyncTest", function ()
                     error(luastd_test.TestException())
                 end)
                 -- Exception is not consumed -> nothing is reported
-                deferred:join()
+                async.join(deferred)
             end)
             t:finish(3)
         end)
@@ -84,17 +84,21 @@ describe("AsyncTest", function ()
                 local decomposed = async.supervisor_scope(function ()
                     return async.async(function () error(luastd_test.TestException()) end)
                 end)
-                local err = error_of(function () decomposed:await() end)
+                local ok, err = async.try_await(decomposed)
+                assert.is_false(ok)
+                ---@cast err luastd.Error -- emmylua drops the overload when the job returns nothing
                 assert.is_equal("TestException", err.kind)
                 return 42
             end)
-            assert.is_equal(42, deferred:await())
+            assert.is_equal(42, async.await(deferred))
         end)
     )
 
-    -- todo: luastd's await prefers the caller's cancellation over the awaited
-    -- job's failure, so the `catch` (expect(4)) is never reached when the
-    -- failing child also cancels the awaiting parent. Needs a decision.
+    -- n/a: a `catch` around awaiting a failing child cannot recover its scope
+    -- in Kotlin either: the child's failure has already cancelled the parent,
+    -- so its 42 is lost and `deferred` still fails. luastd raises that
+    -- cancellation at the await instead of entering the catch (ADR 0005); to
+    -- recover, run the child in `async.try_scope`.
     pending("testParallelDecompositionCaughtExceptionWithInheritedParent")
 
     -- adapted: no `NonCancellable`; the deferred is a child of the test's
@@ -106,9 +110,9 @@ describe("AsyncTest", function ()
                 local decomposed = async.async(function ()
                     error(luastd_test.TestException())
                 end)
-                return decomposed:await()
+                return async.await(decomposed)
             end)
-            deferred:await()
+            async.await(deferred)
             t:expect_unreached()
         end)
     )
@@ -122,9 +126,9 @@ describe("AsyncTest", function ()
                 local decomposed = async.async(function ()
                     error(luastd_test.TestException())
                 end)
-                return decomposed:await()
+                return async.await(decomposed)
             end)
-            deferred:await()
+            async.await(deferred)
             t:expect_unreached()
         end)
     )
@@ -143,7 +147,7 @@ describe("AsyncTest", function ()
                 error(luastd_test.TestException())
             end)
             t:expect(2)
-            d:await() -- will throw TestException
+            async.await(d) -- will throw TestException
         end)
     )
 
@@ -164,13 +168,13 @@ describe("AsyncTest", function ()
             t:expect(2)
             async.launch(function ()
                 t:expect(6)
-                assert.is_equal(42, d:await())
+                assert.is_equal(42, async.await(d))
                 t:expect(10) -- Kotlin: 11
             end)
             t:expect(3)
             async.launch(function ()
                 t:expect(7)
-                assert.is_equal(42, d:await())
+                assert.is_equal(42, async.await(d))
                 t:expect(11) -- Kotlin: 12
             end)
             t:expect(4)
@@ -196,7 +200,7 @@ describe("AsyncTest", function ()
                 t:expect(1)
                 return value
             end)
-            assert.is_true(rawequal(d:await(), value))
+            assert.is_true(rawequal(async.await(d), value))
             t:finish(2)
         end)
     )
@@ -236,7 +240,7 @@ describe("AsyncTest", function ()
             assert.is_true(not d:is_active() and not d:is_completed() and d:is_cancelled())
             t:expect(5)
             local err = error_of(function ()
-                d:await() -- awaits
+                async.await(d) -- awaits
                 t:expect_unreached() -- does not complete normally
             end)
             t:expect(7)

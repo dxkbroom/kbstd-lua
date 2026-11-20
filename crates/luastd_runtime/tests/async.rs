@@ -151,7 +151,7 @@ fn cancellation_survives_a_rust_frame() {
                 end)
                 async.delay(5)
                 job:cancel()
-                job:join()
+                async.join(job)
                 return reached, job:is_cancelled()
                 "#,
             )
@@ -189,7 +189,7 @@ fn unhandled_failures_go_to_the_handler() {
                 async.launch(function () error({ kind = "Supervised" }) end)
                 -- awaited failures and cancellations are not unhandled
                 local d = async.async(function () error({ kind = "Awaited" }) end)
-                pcall(d.await, d)
+                async.try_await(d)
                 async.launch(function () async.delay(1000) end):cancel()
             end)
             "#,
