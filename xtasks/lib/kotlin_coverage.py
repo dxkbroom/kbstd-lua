@@ -11,7 +11,7 @@ from typing import Callable
 KOTLIN_REF = re.compile(r"^\s*-- kotlin:\s*(\S+)@(\S+)\s*$")
 DESCRIBE = re.compile(r'^\s*describe\(\s*"([^"]+)"')
 TEST = re.compile(r'\b(it|pending)\(\s*"([^"]+)"')
-MARK = re.compile(r"^\s*--\s*(adapted|not-applicable|todo):\s*(.*)$")
+MARK = re.compile(r"^\s*--\s*(adapted|not-applicable|defer|todo):\s*(.*)$")
 COMMENT = re.compile(r"^\s*--(.*)$")
 KOTLIN_TEST = re.compile(
     r"@Test\b[^\n]*\n(?:\s*@[^\n]*\n|\s*//[^\n]*\n|\s*/\*.*?\*/\s*\n)*\s*"
@@ -22,7 +22,7 @@ KOTLIN_CLASS_DECLARATION = re.compile(
     r"(?m)^(?P<modifiers>(?:(?:public|internal|private|protected|abstract|open|sealed|data|inner)\s+)*)"
     r"class\s+(?P<name>\w+)(?P<header>[^\n{]*)"
 )
-STATUSES = ("ported", "adapted", "not-applicable", "todo", "missing")
+STATUSES = ("ported", "adapted", "not-applicable", "defer", "todo", "missing")
 KOTLIN_TEST_TAG = "1.11.0"
 KOTLIN_TEST_DIR = "kotlinx-coroutines-core/common/test"
 
@@ -118,7 +118,7 @@ def parse_port(file: Path) -> tuple[list[Port], list[Issue]]:
         kind, name = test.groups()
         mark = reason_above(lines, index)
         if kind == "pending":
-            if mark and mark[0] in ("not-applicable", "todo"):
+            if mark and mark[0] in ("not-applicable", "defer", "todo"):
                 status, reason = mark
             else:
                 status, reason = "todo", ""
@@ -126,7 +126,7 @@ def parse_port(file: Path) -> tuple[list[Port], list[Issue]]:
             status, reason = mark
         else:
             status, reason = "ported", ""
-            if mark and mark[0] in ("not-applicable", "todo"):
+            if mark and mark[0] in ("not-applicable", "defer", "todo"):
                 issues.append(Issue(
                     "invalid-status-marker",
                     f"{mark[0]} marker is attached to an active test",
@@ -368,7 +368,7 @@ def build_report(
                         test=test.name,
                     ))
                 mapped[test.name] = test
-                if not test.reason and test.status in ("adapted", "not-applicable", "todo"):
+                if not test.reason and test.status in ("adapted", "not-applicable", "defer", "todo"):
                     issues.append(Issue(
                         "status-reason-missing",
                         f"{test.status} status requires a reason",
@@ -473,12 +473,49 @@ def build_report(
     }
 
 
+def filter_report(report: dict[str, object], selected: set[str] | None) -> dict[str, object]:
+    """Keep only selected test statuses while preserving report diagnostics."""
+    if not selected:
+        return report
+
+    status_keys = [status.replace("-", "_") for status in STATUSES]
+    classes = []
+    for cls in report["classes"]:
+        tests = [test for test in cls["tests"] if test["status"] in selected]
+        if not tests and not ("missing" in selected and cls["stale_tests"]):
+            continue
+        filtered = {**cls, "tests": tests}
+        filtered["counts"] = {
+            key: sum(test["status"].replace("-", "_") == key for test in tests)
+            for key in status_keys
+        }
+        filtered["stale_tests"] = [
+            stale for stale in cls["stale_tests"] if "missing" in selected
+        ]
+        classes.append(filtered)
+
+    summary = {
+        "classes": len(classes),
+        "unported_classes": sum(cls["port_status"] == "unported" for cls in classes),
+        **{
+            key: sum(cls["counts"][key] for cls in classes)
+            for key in status_keys
+        },
+        "issues": report["summary"]["issues"],
+    }
+    return {
+        **report,
+        "summary": summary,
+        "classes": classes,
+    }
+
+
 def markdown_report(report: dict[str, object]) -> str:
     """Render a portable nested Markdown list from the report model."""
     summary = report["summary"]
     counts = " · ".join(
         f"{summary[key]} {label}"
-        for key, label in (("ported", "ported"), ("adapted", "adapted"), ("not_applicable", "not-applicable"), ("todo", "todo"), ("missing", "missing"))
+        for key, label in (("ported", "ported"), ("adapted", "adapted"), ("not_applicable", "not-applicable"), ("defer", "defer"), ("todo", "todo"), ("missing", "missing"))
     )
     lines = [
         f"# Kotlin coroutine test ports — {summary['classes']} classes ({summary['unported_classes']} unported)",
@@ -486,11 +523,11 @@ def markdown_report(report: dict[str, object]) -> str:
         counts,
         "",
     ]
-    status_icon = {"ported": "✓", "adapted": "~", "not-applicable": "○", "todo": "·", "missing": "✗"}
+    status_icon = {"ported": "✓", "adapted": "~", "not-applicable": "○", "defer": "↷", "todo": "·", "missing": "✗"}
     for cls in report["classes"]:
         class_counts = " · ".join(
             f"{cls['counts'][key]} {label}"
-            for key, label in (("ported", "ported"), ("adapted", "adapted"), ("not_applicable", "not-applicable"), ("todo", "todo"), ("missing", "missing"))
+            for key, label in (("ported", "ported"), ("adapted", "adapted"), ("not_applicable", "not-applicable"), ("defer", "defer"), ("todo", "todo"), ("missing", "missing"))
             if cls["counts"][key]
         )
         if cls["port_status"] == "unported":

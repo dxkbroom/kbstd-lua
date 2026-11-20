@@ -8,7 +8,6 @@
 
 from __future__ import annotations
 
-import argparse
 import os
 import re
 import sys
@@ -37,11 +36,7 @@ def register_classes(source: str, classes: set[str]) -> str:
     return source[:match.start()] + match.group(1) + body + match.group(3) + source[match.end():]
 
 
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--dry-run", action="store_true", help="list planned files without writing")
-    args = parser.parse_args(argv)
-
+def main() -> int:
     report = build_report(sorted(PORTS.glob("*.lua")), ROOT, KOTLINX, inventory_tag=KOTLIN_TEST_TAG)
     if report["issues"]:
         print(f"Kotlin inventory has {len(report['issues'])} issue(s); refusing to generate incomplete stubs", file=sys.stderr)
@@ -60,7 +55,7 @@ def main(argv: list[str] | None = None) -> int:
             continue
         generated.append((target, cls))
 
-    if args.dry_run:
+    if os.environ.get("usage_dry_run") == "true":
         for target, _ in generated:
             print(target.relative_to(ROOT))
         print(f"Would generate {len(generated)} stub(s)")
