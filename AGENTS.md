@@ -16,8 +16,12 @@ to `lua55`.
 - `mise run build [target]` / `mise run b` - `cargo build` the workspace for one Lua version
 - `mise run test [target]` / `mise run t` - all tests
 - `mise run test:unit [target]` - `cargo test`, then `lx test` (busted specs in `spec/`)
-- `mise run test:kotlin [--check]` - which kotlinx.coroutines tests the Kotlin ports
-  cover (needs the checkout in `$KOTLINX_DIR`, default `../kotlinx.coroutines`)
+- `mise run kotlin:check [--check]` - which kotlinx.coroutines tests the Kotlin
+  ports cover (needs the checkout in `$KOTLINX_DIR`, default `../kotlinx.coroutines`)
+- `mise run kotlin:report [--json|--markdown] [--check]` - full Kotlin test
+  inventory and port coverage report
+- `mise run kotlin:stubs [--dry-run]` - generate pending Lua specs for unported
+  Kotlin test classes and register them in the Rust test target
 - `mise run lint [target]` / `mise run check` - rumdl, tombi, `cargo clippy`, `emmylua_check`
 - `mise run fmt` / `mise run format` - cargo fmt, rumdl fmt, tombi format, luafmt
 - `mise run example` - run `crates/luastd_runtime/examples/hello.rs` (vendored luajit52)
@@ -127,7 +131,7 @@ so each reads next to its Kotlin source:
   (main-kbroom).
 - Kotlin's `TimeoutCancellationException` is luastd's `Timeout` error kind;
   `TestException`/`1`/`2`/`3` are `luastd_test.TestException()` etc.
-- `mise run test:kotlin` reports ported/adapted/not-applicable/todo/missing per class;
+- `mise run kotlin:check` reports ported/adapted/not-applicable/todo/missing per class;
   `--check` fails on missing tests or names Kotlin does not have.
 
 ## Dependencies
