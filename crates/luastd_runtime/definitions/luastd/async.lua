@@ -132,7 +132,9 @@ function async.scope(body) end
 function async.supervisor_scope(body) end
 
 --- Run `body` in a scope that is cancelled after `ms` milliseconds; raises
---- `Timeout` (a catchable `luastd.Error`) when it is.
+--- `Timeout` (a catchable `luastd.Error`) when it is, with the message
+--- `"Timed out waiting for <ms> ms"`. As in kotlinx.coroutines, `ms <= 0`
+--- raises `Timeout` (`"Timed out immediately"`) without running `body`.
 ---@async
 ---@generic T...
 ---@param ms   number

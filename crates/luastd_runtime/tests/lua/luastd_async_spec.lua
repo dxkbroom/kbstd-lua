@@ -280,7 +280,7 @@ describe("luastd.async", function ()
                 end)
             end)
             assert.is_equal("Timeout", err.kind)
-            assert.matches("10 ms", err.message, 1, true)
+            assert.is_equal("Timed out waiting for 10 ms", err.message)
             assert.is_false(finished)
         end)
 
@@ -294,6 +294,18 @@ describe("luastd.async", function ()
             end)
             assert.is_equal("Timeout", err.kind)
             assert.is_false(reached)
+        end)
+
+        it("times out immediately for zero or negative ms without running the body", function ()
+            for _, ms in ipairs({ 0, -1 }) do
+                local ran = false
+                local err = error_of(function ()
+                    async.with_timeout(ms, function () ran = true end)
+                end)
+                assert.is_equal("Timeout", err.kind)
+                assert.is_equal("Timed out immediately", err.message)
+                assert.is_false(ran)
+            end
         end)
     end)
 
@@ -661,6 +673,11 @@ describe("luastd.async", function ()
             ---@diagnostic disable-next-line: param-type-mismatch
             assert.is_equal("InvalidArgument", error_of(function () async.launch(42) end).kind)
             assert.is_equal("InvalidArgument", error_of(function () async.delay(-1) end).kind)
+            assert.is_equal(
+                "InvalidArgument",
+                ---@diagnostic disable-next-line: param-type-mismatch
+                error_of(function () async.with_timeout("1", function () end) end).kind
+            )
         end)
     end)
 end)

@@ -112,7 +112,7 @@ local function run_scope(kind, body, ms)
     if status == "ok" then return unpack(result, 2, result.n) end
     if status == "failed" then error(err, 0) end
     if status == "timeout" then
-        error(new_error("Timeout", ("timed out after %s ms"):format(tostring(ms))), 0)
+        error(new_error("Timeout", ("Timed out waiting for %s ms"):format(tostring(ms))), 0)
     end
     raise_cancelled()
 end
@@ -200,8 +200,17 @@ function async.supervisor_scope(body)
 end
 
 function async.with_timeout(ms, body)
-    check_ms(ms, 1, "with_timeout")
+    if type(ms) ~= "number" or ms ~= ms then
+        error(
+            new_error(
+                "InvalidArgument",
+                ("bad argument #1 to 'with_timeout' (number of milliseconds expected, got %s)"):format(tostring(ms))
+            ), 2
+        )
+    end
     check_fn(body, 2, "with_timeout")
+    -- As in kotlinx.coroutines: no time at all times out before the body runs.
+    if ms <= 0 then error(new_error("Timeout", "Timed out immediately"), 0) end
     return run_scope("timeout", body, ms)
 end
 
