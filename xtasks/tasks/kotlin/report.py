@@ -7,11 +7,17 @@
 #USAGE flag "--json" help="Write the report as JSON"
 #USAGE flag "--markdown" help="Write the report as nested Markdown"
 #USAGE flag "--check" help="Exit 1 if the report contains coverage gaps or invalid port metadata"
+#USAGE group "output" "--json" "--markdown"
+#USAGE flag "--ported" help="Include ported tests; if no status flag is set, show all statuses"
+#USAGE flag "--adapted" help="Include adapted tests"
+#USAGE flag "--not-applicable" help="Include not-applicable tests"
+#USAGE flag "--defer" help="Include tests deferred because the current API cannot support them"
+#USAGE flag "--todo" help="Include unported tests that can be worked on with the current API"
+#USAGE flag "--missing" help="Include Kotlin tests not listed in a Lua port"
 """Render current Kotlin coroutine port coverage as a tree, Markdown, or JSON."""
 
 from __future__ import annotations
 
-import argparse
 import json
 import os
 import sys
@@ -20,25 +26,17 @@ from pathlib import Path
 ROOT = Path(os.environ.get("MISE_PROJECT_ROOT") or Path(__file__).resolve().parents[3])
 sys.path.insert(0, str(ROOT / "xtasks/lib"))
 
-from kotlin_coverage import KOTLIN_TEST_TAG, build_report, has_gaps, markdown_report
+from kotlin_coverage import KOTLIN_TEST_TAG, build_report, filter_report, has_gaps, markdown_report
 
 PORTS = ROOT / "crates/luastd_runtime/tests/lua/kotlinx"
 KOTLINX = Path(os.environ.get("KOTLINX_DIR") or ROOT.parent / "kotlinx.coroutines")
-STATUS_SYMBOL = {"ported": "✓", "adapted": "~", "not-applicable": "○", "todo": "·", "missing": "✗"}
-
-
-def parser() -> argparse.ArgumentParser:
-    result = argparse.ArgumentParser(description=__doc__)
-    output = result.add_mutually_exclusive_group()
-    output.add_argument("--json", action="store_true", help="write JSON")
-    output.add_argument("--markdown", action="store_true", help="write Markdown tree")
-    result.add_argument("--check", action="store_true", help="fail on coverage gaps or invalid metadata")
-    return result
+STATUS_SYMBOL = {"ported": "✓", "adapted": "~", "not-applicable": "○", "defer": "↷", "todo": "·", "missing": "✗"}
+STATUSES = ("ported", "adapted", "not-applicable", "defer", "todo", "missing")
 
 
 def counts_label(counts: dict[str, int], *, compact: bool = False) -> str:
     labels = []
-    for key, status in (("ported", "ported"), ("adapted", "adapted"), ("not_applicable", "not-applicable"), ("todo", "todo"), ("missing", "missing")):
+    for key, status in (("ported", "ported"), ("adapted", "adapted"), ("not_applicable", "not-applicable"), ("defer", "defer"), ("todo", "todo"), ("missing", "missing")):
         count = counts[key]
         if count or not compact:
             labels.append(f"{count} {status}")
@@ -77,21 +75,25 @@ def terminal_tree(report: dict[str, object]):
     return root
 
 
-def main(argv: list[str] | None = None) -> int:
-    args = parser().parse_args(argv)
+def main() -> int:
     files = sorted(PORTS.glob("*.lua"))
-    report = build_report(files, ROOT, KOTLINX, inventory_tag=KOTLIN_TEST_TAG)
+    full_report = build_report(files, ROOT, KOTLINX, inventory_tag=KOTLIN_TEST_TAG)
+    selected = {
+        status for status in STATUSES
+        if os.environ.get(f"usage_{status.replace('-', '_')}") == "true"
+    }
+    report = filter_report(full_report, selected or None)
 
-    if args.json:
+    if os.environ.get("usage_json") == "true":
         print(json.dumps(report, ensure_ascii=False, indent=2))
-    elif args.markdown:
+    elif os.environ.get("usage_markdown") == "true":
         print(markdown_report(report), end="")
     else:
         from rich.console import Console
 
         Console(highlight=False).print(terminal_tree(report))
 
-    return 1 if args.check and has_gaps(report) else 0
+    return 1 if os.environ.get("usage_check") == "true" and has_gaps(full_report) else 0
 
 
 if __name__ == "__main__":
