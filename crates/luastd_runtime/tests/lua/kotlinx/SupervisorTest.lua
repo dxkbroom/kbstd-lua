@@ -46,31 +46,29 @@ describe("SupervisorTest", function ()
         end)
     )
 
-    -- adapted: use a deferred failure and `try_await` to inspect the error;
-    -- this keeps the sibling-isolation assertion inside the test.
     it(
         "testSupervisorScopeIsolation",
-        runtest(function (t)
-            local sibling_finished = false
-            local failed
-            async.supervisor_scope(function (scope)
-                scope:launch(function ()
-                    async.delay(20)
-                    sibling_finished = true
+        runtest({ unhandled = { "TestException2" } }, function (t)
+            local result = async.supervisor_scope(function (scope)
+                t:expect(1)
+                local job = scope:launch(function ()
+                    t:expect(2)
+                    async.delay(math.huge)
                 end)
-                failed = scope:async(function ()
-                    async.delay(5)
+                local failing_job = scope:launch(function ()
+                    t:expect(3)
                     error(luastd_test.TestException2())
                 end)
-                local ok, err = async.try_await(failed)
-                assert.is_false(ok)
-                assert.is_equal("TestException2", err.kind)
-                local scope_job = scope:coroutine_context():job()
-                assert.is_true(scope_job ~= nil and scope_job:is_active())
-                assert.is_true(not failed:is_active() and failed:is_completed() and failed:is_cancelled())
+                async.join(failing_job)
+                async.yield()
+                t:expect(4)
+                assert.is_true(job:is_active())
+                assert.is_false(job:is_cancelled())
+                job:cancel()
+                return "OK"
             end)
-            assert.is_true(sibling_finished)
-            t:finish(1)
+            assert.is_equal("OK", result)
+            t:finish(5)
         end)
     )
 
