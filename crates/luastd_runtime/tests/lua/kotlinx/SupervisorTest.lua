@@ -1,14 +1,13 @@
 -- Port of kotlinx.coroutines' SupervisorTest (see AGENTS.md, "Kotlin test
 -- ports"). luastd's supervisor boundary is `async.supervisor_scope`; it has
 -- no standalone SupervisorJob, Job parent, or start modes.
----@diagnostic disable: await-in-sync
-
 local async = require("luastd.async")
 local luastd_test = require("luastd_test")
 local runtest = luastd_test.runtest
 
 --- Kotlin's `try { ... } catch (e: ...)`: the error `fn` raised.
----@param fn fun()
+---@async
+---@param fn async fun()
 ---@return any
 local function error_of(fn)
     local ok, err = pcall(fn)
@@ -63,7 +62,7 @@ describe("SupervisorTest", function ()
 
     it(
         "testThrowingSupervisorScope",
-        runtest(function (t)
+        runtest({}, function (t)
             local child, supervisor_job
             local err = error_of(function ()
                 t:expect(1)
@@ -93,7 +92,7 @@ describe("SupervisorTest", function ()
     -- child before cancelling its parent, then check its cancellation cleanup.
     it(
         "testSupervisorScopeExternalCancellation",
-        runtest(function (t)
+        runtest({}, function (t)
             local child, child_finished
             local outer = async.launch(function ()
                 async.supervisor_scope(function (scope)
@@ -132,7 +131,7 @@ describe("SupervisorTest", function ()
     -- not enter the body's later error path (ADR 0005).
     it(
         "testSupervisorScopeCancellationVsException",
-        runtest(function (t)
+        runtest({}, function (t)
             local after_scope = false
             local job = async.launch(function (self)
                 async.supervisor_scope(function ()
@@ -157,7 +156,7 @@ describe("SupervisorTest", function ()
     -- Kotlin reports that cleanup error as unhandled; luastd keeps the body error.
     it(
         "testSupervisorThrowsWithFailingChild",
-        runtest(function (t)
+        runtest({}, function (t)
             local cleanup_ran = false
             local err = error_of(function ()
                 async.supervisor_scope(function (scope)
@@ -182,7 +181,7 @@ describe("SupervisorTest", function ()
 
     it(
         "testSupervisorThrows",
-        runtest(function (t)
+        runtest({}, function (t)
             local err = error_of(function ()
                 t:expect(1)
                 async.supervisor_scope(function (scope)
