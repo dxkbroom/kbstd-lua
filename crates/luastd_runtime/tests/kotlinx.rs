@@ -42,6 +42,7 @@ macro_rules! kotlinx {
 
 kotlinx! {
     AsyncTest,
+    SupervisorTest,
     WithTimeoutTest,
 }
 
