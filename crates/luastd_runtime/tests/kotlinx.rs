@@ -40,7 +40,9 @@ macro_rules! kotlinx {
     };
 }
 
-kotlinx! {}
+kotlinx! {
+    WithTimeoutTest,
+}
 
 #[test]
 fn every_port_is_listed() {
