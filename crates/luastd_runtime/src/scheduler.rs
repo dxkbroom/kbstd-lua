@@ -153,6 +153,7 @@ pub(crate) struct Scheduler {
     runner: RefCell<Option<Function>>,
     running: Cell<bool>,
     epoch: Instant,
+    unhandled: RefCell<Option<UnhandledHandler>>,
 }
 
 impl Scheduler {
@@ -163,6 +164,7 @@ impl Scheduler {
             runner: RefCell::default(),
             running: Cell::new(false),
             epoch: Instant::now(),
+            unhandled: RefCell::default(),
         }
     }
 
@@ -255,6 +257,27 @@ pub fn cancel_jobs(lua: &Lua) {
     if let Ok(s) = scheduler(lua) {
         s.root().token.cancel();
     }
+}
+
+/// Receives a failure nobody else will see: the error value of a job started
+/// with `launch` that failed in a supervisor scope (`supervisor_scope` or the
+/// implicit root of `Runtime::run`). Cancellation never reaches it.
+pub type UnhandledHandler = Rc<dyn Fn(&Lua, Value)>;
+
+/// Replace the handler for unhandled job failures, like kotlinx.coroutines'
+/// `CoroutineExceptionHandler`; `None` restores the default, which prints the
+/// failure to stderr. Returns the previous handler.
+///
+/// Test harnesses use it to fail a test instead of printing.
+///
+/// # Errors
+///
+/// When `lua` has no runtime installed.
+pub fn set_unhandled_handler(
+    lua: &Lua,
+    handler: Option<UnhandledHandler>,
+) -> Result<Option<UnhandledHandler>> {
+    Ok(scheduler(lua)?.unhandled.replace(handler))
 }
 
 /// Install the scheduler; returns the core table for the prelude.
@@ -386,6 +409,13 @@ fn complete(lua: &Lua, node: &Rc<Node>, status: Status, value: Value) {
 }
 
 fn report_unhandled(lua: &Lua, value: &Value) {
+    let handler = scheduler(lua)
+        .ok()
+        .and_then(|s| s.unhandled.borrow().clone());
+    if let Some(handler) = handler {
+        handler(lua, value.clone());
+        return;
+    }
     let text = lua
         .coerce_string(value.clone())
         .ok()

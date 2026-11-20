@@ -50,7 +50,7 @@ pub use env::Env;
 pub use errors::LuaError;
 pub use prompt::{PromptDecision, PromptRequest, Prompter};
 pub use runtime::Runtime;
-pub use scheduler::{cancel_jobs, cancellable};
+pub use scheduler::{UnhandledHandler, cancel_jobs, cancellable, set_unhandled_handler};
 
 pub use deno_permissions;
 pub use luastd;
