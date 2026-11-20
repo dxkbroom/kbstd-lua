@@ -7,11 +7,11 @@ local async = require("luastd.async")
 local luastd_test = require("luastd_test")
 
 --- Kotlin's `try { ... } catch (e: ...)`: the error `fn` raised.
----@param fn  fun(...)
----@param ... any
+---@param fn fun()
 ---@return any
-local function error_of(fn, ...)
-    local ok, err = pcall(fn, ...)
+local function error_of(fn)
+    local ok, err = pcall(fn)
+    assert.is_false(ok)
     return err
 end
 
