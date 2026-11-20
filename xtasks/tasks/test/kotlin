@@ -1,0 +1,162 @@
+#!/usr/bin/env python3
+#MISE description="Report which kotlinx.coroutines tests the Kotlin ports cover (ported/adapted/n/a/todo/missing)"
+#USAGE flag "--check" help="Exit 1 if a Kotlin test is missing from its port or a port names a test Kotlin does not have"
+#USAGE arg "[FILES]..." help="Port files (default: crates/luastd_runtime/tests/lua/kotlinx/*.lua)"
+"""Coverage of the kotlinx.coroutines test ports (AGENTS.md, "Kotlin test ports").
+
+Each port file has, per Kotlin class:
+
+    -- kotlin: kotlinx-coroutines-core/common/test/WithTimeoutTest.kt@1.11.0
+    describe("WithTimeoutTest", function ()
+        it("testBasicNoSuspend", ...)          -- ported
+        -- adapted: why                       -- ported with a deliberate difference
+        it("testBadClass", ...)
+        -- n/a: why  |  -- todo: why
+        pending("testSuppressExceptionWithAnotherException")
+
+The Kotlin sources come from the kotlinx.coroutines checkout in
+$KOTLINX_DIR (default: ../kotlinx.coroutines next to this repository):
+`.git/cdtag/<tag>/<path>` when that tree exists, else `git show <tag>:<path>`.
+"""
+
+from __future__ import annotations
+
+import os
+import re
+import subprocess
+import sys
+from dataclasses import dataclass, field
+from pathlib import Path
+
+ROOT = Path(os.environ.get("MISE_PROJECT_ROOT") or Path(__file__).resolve().parents[3])
+PORTS = ROOT / "crates/luastd_runtime/tests/lua/kotlinx"
+KOTLINX = Path(os.environ.get("KOTLINX_DIR") or ROOT.parent / "kotlinx.coroutines")
+
+KOTLIN_REF = re.compile(r"^\s*-- kotlin:\s*(\S+)@(\S+)\s*$")
+DESCRIBE = re.compile(r'^\s*describe\(\s*"([^"]+)"')
+TEST = re.compile(r'\b(it|pending)\(\s*"([^"]+)"')
+MARK = re.compile(r"^\s*--\s*(adapted|n/a|todo):\s*(.*)$")
+COMMENT = re.compile(r"^\s*--(.*)$")
+KOTLIN_TEST = re.compile(
+    r"@Test\b[^\n]*\n(?:\s*@[^\n]*\n|\s*//[^\n]*\n|\s*/\*.*?\*/\s*\n)*\s*"
+    r"(?:(?:public|internal|private|open|abstract|override|suspend)\s+)*fun\s+`?(\w+)",
+    re.S,
+)
+
+
+@dataclass
+class Port:
+    cls: str
+    path: str
+    tag: str
+    file: Path
+    tests: dict[str, tuple[str, str]] = field(default_factory=dict)  # name -> (status, reason)
+
+
+def reason_above(lines: list[str], index: int) -> tuple[str, str] | None:
+    """The `-- adapted:`/`-- n/a:`/`-- todo:` mark in the comment block above line `index`."""
+    block: list[str] = []
+    i = index - 1
+    while i >= 0 and COMMENT.match(lines[i]):
+        block.insert(0, lines[i])
+        i -= 1
+    for j, line in enumerate(block):
+        mark = MARK.match(line)
+        if mark:
+            text = [mark.group(2).strip()]
+            for more in block[j + 1 :]:
+                if MARK.match(more):
+                    break
+                text.append(COMMENT.match(more).group(1).strip())
+            return mark.group(1), " ".join(t for t in text if t)
+    return None
+
+
+def parse_port(file: Path) -> list[Port]:
+    lines = file.read_text().splitlines()
+    ports: list[Port] = []
+    pending_ref = None
+    current: Port | None = None
+    for index, line in enumerate(lines):
+        ref = KOTLIN_REF.match(line)
+        if ref:
+            pending_ref = ref
+            continue
+        describe = DESCRIBE.match(line)
+        if describe and pending_ref:
+            current = Port(describe.group(1), pending_ref.group(1), pending_ref.group(2), file)
+            ports.append(current)
+            pending_ref = None
+            continue
+        if current is None:
+            continue
+        # `it(` may be followed by the name on the next line (luafmt).
+        text = line if TEST.search(line) else line + (lines[index + 1] if index + 1 < len(lines) else "")
+        test = TEST.search(text)
+        if not test or not re.match(r"^\s*(it|pending)\(", line):
+            continue
+        kind, name = test.groups()
+        mark = reason_above(lines, index)
+        if kind == "pending":
+            status, reason = mark if mark and mark[0] in ("n/a", "todo") else ("todo", "(no reason given)")
+        elif mark and mark[0] == "adapted":
+            status, reason = mark
+        else:
+            status, reason = "ported", ""
+        current.tests[name] = (status, reason)
+    return ports
+
+
+def kotlin_source(path: str, tag: str) -> str | None:
+    tree = KOTLINX / ".git" / "cdtag" / tag / path
+    if tree.is_file():
+        return tree.read_text()
+    try:
+        return subprocess.run(
+            ["git", "-C", str(KOTLINX), "show", f"{tag}:{path}"],
+            check=True, capture_output=True, text=True,
+        ).stdout
+    except (OSError, subprocess.CalledProcessError):
+        return None
+
+
+def main(argv: list[str]) -> int:
+    check = os.environ.get("usage_check") == "true" or "--check" in argv
+    files = [Path(a) for a in argv if not a.startswith("--")]
+    if not files:
+        env_files = os.environ.get("usage_files", "").split()
+        files = [Path(f) for f in env_files] or sorted(PORTS.glob("*.lua"))
+    problems = 0
+    totals: dict[str, int] = {}
+    for file in files:
+        for port in parse_port(file):
+            source = kotlin_source(port.path, port.tag)
+            rel = file.resolve().relative_to(ROOT) if file.resolve().is_relative_to(ROOT) else file
+            print(f"{port.cls}  ({port.path}@{port.tag} -> {rel})")
+            if source is None:
+                print(f"  ! Kotlin source not found under {KOTLINX} (set KOTLINX_DIR)")
+                problems += 1
+                continue
+            if not re.search(rf"\bclass\s+{re.escape(port.cls)}\b", source):
+                print(f"  ! no class {port.cls} in {port.path}")
+                problems += 1
+            kotlin_tests = KOTLIN_TEST.findall(source)
+            for name in kotlin_tests:
+                status, reason = port.tests.get(name, ("missing", ""))
+                totals[status] = totals.get(status, 0) + 1
+                problems += status == "missing"
+                print(f"  {status:<8} {name}" + (f"  - {reason}" if reason else ""))
+            for name in port.tests:
+                if name not in kotlin_tests:
+                    print(f"  ! {name} is not a @Test in {port.cls}")
+                    problems += 1
+            counts = {s: sum(1 for n in kotlin_tests if port.tests.get(n, ("missing",))[0] == s)
+                      for s in ("ported", "adapted", "n/a", "todo", "missing")}
+            print("  " + ", ".join(f"{v} {k}" for k, v in counts.items()) + f" of {len(kotlin_tests)}")
+    if totals:
+        print("total: " + ", ".join(f"{totals.get(k, 0)} {k}" for k in ("ported", "adapted", "n/a", "todo", "missing")))
+    return 1 if check and problems else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

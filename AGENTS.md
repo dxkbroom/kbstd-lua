@@ -16,6 +16,8 @@ to `lua55`.
 - `mise run build [target]` / `mise run b` - `cargo build` the workspace for one Lua version
 - `mise run test [target]` / `mise run t` - all tests
 - `mise run test:unit [target]` - `cargo test`, then `lx test` (busted specs in `spec/`)
+- `mise run test:kotlin [--check]` - which kotlinx.coroutines tests the Kotlin ports
+  cover (needs the checkout in `$KOTLINX_DIR`, default `../kotlinx.coroutines`)
 - `mise run lint [target]` / `mise run check` - rumdl, tombi, `cargo clippy`, `emmylua_check`
 - `mise run fmt` / `mise run format` - cargo fmt, rumdl fmt, tombi format, luafmt
 - `mise run example` - run `crates/luastd_runtime/examples/hello.rs` (vendored luajit52)
@@ -44,7 +46,9 @@ Run `mise run fmt` and `mise run lint` before committing.
 - `spec/` - busted specs, run by `lx test` against the cdylib.
 - `crates/luastd_runtime/tests/lua/` - busted-shaped specs for runtime modules,
   run inside a `Runtime` by `tests/common` with `harness.lua` (busted itself
-  needs `io`, which the sandbox removes).
+  needs `io`, which the sandbox removes) and `luastd_test.lua`
+  (`require("luastd_test")`: `runtest`, test-only). `kotlinx/` holds the Kotlin
+  test ports, run by `tests/kotlinx.rs`.
 - `examples/tinyvi/` - small ratatui modal editor exercising the runtime; not published.
 - `xtasks/tasks/` - mise file tasks.
 - `.lazy.lua`, `.nvim/` - Neovim dev setup: the emmylua fork, `require("luastd")`
@@ -94,6 +98,35 @@ Run `mise run fmt` and `mise run lint` before committing.
   cross-link the other.
 - **luastd's own Lua is plain 5.1 + LuaJIT.** Stubs, specs and helpers must not
   rely on 5.2-compat additions, so they run on a Neovim-style `luajit`.
+
+## Kotlin test ports
+
+`luastd.async` follows kotlinx.coroutines, so its behaviour is tested by
+porting kotlinx.coroutines 1.11.0's tests (`kotlinx-coroutines-core/common/test`).
+Our own specs keep the `luastd_<module>_spec.lua` convention; ports are kept apart
+so each reads next to its Kotlin source:
+
+- One file per Kotlin class: `crates/luastd_runtime/tests/lua/kotlinx/<Class>.lua`,
+  listed in `kotlinx!` in `tests/kotlinx.rs` (one `#[test]` per class, in a
+  fresh runtime: `cargo test --test kotlinx WithTimeoutTest`).
+- Directly above the top-level `describe`, a `-- kotlin: <path>@<tag>` line
+  (e.g. `-- kotlin: kotlinx-coroutines-core/common/test/WithTimeoutTest.kt@1.11.0`).
+  The `describe` is the Kotlin class name; each `it` is the Kotlin `fun` name,
+  unchanged.
+- Every Kotlin `@Test` appears once, as one of:
+  - `it(name, luastd_test.runtest(...))` - ported;
+  - the same with a `-- adapted: <why>` comment above - ported with a deliberate
+    difference;
+  - `pending(name)` with `-- n/a: <why>` (cannot apply to luastd, e.g. ADR 0005)
+    or `-- todo: <why>` (needs an API luastd lacks yet) above.
+- `luastd_test.runtest(function (t) ... end)` mirrors `runTest { }`: `t:expect(n)`,
+  `t:finish(n)`, `t:expect_unreached()`; options `expected`, `unhandled` (a
+  luastd.Error kind, or a predicate) and `timeout` (default 10 s). Call it
+  through the module; a local alias loses its overload in emmylua.
+- Kotlin's `TimeoutCancellationException` is luastd's `Timeout` error kind;
+  `TestException`/`1`/`2`/`3` are `luastd_test.TestException()` etc.
+- `mise run test:kotlin` reports ported/adapted/n/a/todo/missing per class;
+  `--check` fails on missing tests or names Kotlin does not have.
 
 ## Dependencies
 
