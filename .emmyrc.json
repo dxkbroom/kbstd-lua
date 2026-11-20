@@ -2,10 +2,12 @@
   "$schema": "https://raw.githubusercontent.com/EmmyLuaLs/emmylua-analyzer-rust/refs/heads/main/crates/emmylua_code_analysis/resources/schema.json",
   "workspace": {
     "workspaceRoots": [
-      "./spec"
+      "./spec",
+      "./crates/luastd_runtime/tests/lua"
     ],
     "library": [
-      "./definitions/"
+      "./crates/luastd/definitions/",
+      "./crates/luastd_runtime/definitions/"
     ],
     "ignoreDir": [
       ".lux"
