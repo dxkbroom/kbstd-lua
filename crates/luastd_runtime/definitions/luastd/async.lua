@@ -31,6 +31,11 @@ local async = {}
 ---@class luastd.async.Scope
 local Scope = {}
 
+--- The coroutine context visible to code running in this scope. Its Job is
+--- this scope's lifetime handle; other elements describe execution metadata.
+---@return luastd.async.CoroutineContext
+function Scope:coroutine_context() end
+
 --- Launch a child job in this scope, whichever coroutine calls it.
 ---@param body fun(scope: luastd.async.Scope)
 ---@return luastd.async.Job
@@ -63,9 +68,33 @@ function Scope:is_completed() end
 ---@param handler fun()
 function Scope:on_cancel(handler) end
 
---- A handle to a launched coroutine; also the scope its body receives.
---- Wait for it with `async.join(job)`.
----@class luastd.async.Job: luastd.async.Scope
+--- A coroutine's lifetime and cancellation handle. Its children are launched
+--- through a CoroutineScope whose context contains this Job.
+---@class luastd.async.Job
+local Job = {}
+
+--- Cancel this Job and its children.
+function Job:cancel() end
+
+--- Whether this Job is active.
+---@return boolean
+function Job:is_active() end
+
+--- Whether this Job was cancelled.
+---@return boolean
+function Job:is_cancelled() end
+
+--- Whether this Job and its children have finished.
+---@return boolean
+function Job:is_completed() end
+
+--- Run `handler` when this Job ends without completing normally.
+---@param handler fun()
+function Job:on_cancel(handler) end
+
+--- A handle to a launched coroutine that also produces values; collect them
+--- with `async.await(d)` or `async.try_await(d)`.
+---@class luastd.async.Deferred<T...>: luastd.async.Job
 
 --- A job that produces the values `T...`, the body's return values; collect
 --- them with `async.await(d)` or `async.try_await(d)`.
@@ -176,12 +205,59 @@ function async.supervisor_scope(body) end
 --- `Timeout` (a catchable `luastd.Error`) when it is, with the message
 --- `"Timed out waiting for <ms> ms"`. As in kotlinx.coroutines, `ms <= 0`
 --- raises `Timeout` (`"Timed out immediately"`) without running `body`.
+--- When the effective context has a `CoroutineName`, the timeout message
+--- starts with `Coroutine "<name>"`.
 ---@async
 ---@generic T...
 ---@param ms   number
 ---@param body fun(scope: luastd.async.Scope): T...
 ---@return T...
 function async.with_timeout(ms, body) end
+
+--- A name carried in a coroutine context. Child jobs inherit the effective
+--- name; a nested `with_context` can temporarily replace it.
+---@class luastd.async.CoroutineName
+---@field name string
+local CoroutineName = {}
+
+--- Create a coroutine-name context element.
+---@param name string
+---@return luastd.async.CoroutineName
+function async.coroutine_name(name) end
+
+--- An immutable set of coroutine-context elements. Initially supports
+--- `CoroutineName`; its Job is supplied by the lexical scope running it.
+---@class luastd.async.CoroutineContext
+local CoroutineContext = {}
+
+--- Get the Job associated with this running context.
+---@return luastd.async.Job?
+function CoroutineContext:job() end
+
+--- Get the effective coroutine name, if set.
+---@return string?
+function CoroutineContext:coroutine_name() end
+
+--- Combine context elements. When an element key is repeated, the last value
+--- wins, as in Kotlin's CoroutineContext.
+---@param ... luastd.async.CoroutineName
+---@return luastd.async.CoroutineContext
+function async.context(...) end
+
+--- Run `body` in a lexically scoped coroutine with the supplied elements
+--- combined with the caller's context. Unspecified elements are inherited;
+--- the scope gets a child Job and cancellation relationship. The caller's
+--- context is restored on return, error, or cancellation.
+---@async
+---@generic T...
+---@param context luastd.async.CoroutineContext
+---@param body    fun(scope: luastd.async.Scope): T...
+---@return T...
+function async.with_context(context, body) end
+
+--- The effective context of the currently running coroutine.
+---@return luastd.async.CoroutineContext
+function async.current_context() end
 
 --- Suspend for `ms` milliseconds.
 ---@async
