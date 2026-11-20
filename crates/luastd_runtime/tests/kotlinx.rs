@@ -42,6 +42,10 @@ macro_rules! kotlinx {
 
 kotlinx! {
     AsyncTest,
+    AwaitTest,
+    CoroutineScopeTest,
+    DelayTest,
+    FailedJobTest,
     SupervisorTest,
     WithTimeoutTest,
 }
