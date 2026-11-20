@@ -3,6 +3,7 @@
 rumdl = "0.2.79"
 tombi = "1.9.8"
 rust = "1.99.0"
+uv = "0.13.9"
 
 [env]
 # TODO: temporary local build of fork branch main-kbroom while we keep

@@ -11,3 +11,7 @@
 # Nix
 
 /result
+
+# Python task bytecode
+__pycache__/
+*.py[cod]

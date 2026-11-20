@@ -1,0 +1,153 @@
+"""Unit tests for the Kotlin port coverage report model and renderers."""
+
+from __future__ import annotations
+
+import json
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "lib"))
+
+from kotlin_coverage import build_report, has_gaps, markdown_report, parse_port
+
+SOURCE = '''class ExampleTest {
+    @Test
+    fun testKnown() {}
+
+    @Test
+    fun testAdapted() {}
+
+    @Test
+    fun testTodo() {}
+
+    @Test
+    fun testMissing() {}
+}
+'''
+
+PORT = '''-- kotlin: sample/ExampleTest.kt@1.11.0
+describe("ExampleTest", function ()
+    it("testKnown", function () end)
+    -- adapted: this port exercises the same case with an existing primitive.
+    it("testAdapted", function () end)
+    -- todo: the API needed by this case is not available.
+    pending("testTodo")
+    it("testStale", function () end)
+end)
+'''
+
+
+class KotlinCoverageTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temp = tempfile.TemporaryDirectory()
+        self.root = Path(self.temp.name)
+        self.port_file = self.root / "ExampleTest.lua"
+        self.port_file.write_text(PORT)
+
+    def tearDown(self) -> None:
+        self.temp.cleanup()
+
+    def source_loader(self, path: str, tag: str, checkout: Path) -> str | None:
+        self.assertEqual("sample/ExampleTest.kt", path)
+        self.assertEqual("1.11.0", tag)
+        self.assertEqual(self.root, checkout)
+        return SOURCE
+
+    def test_parse_port_records_status_reasons_and_line_numbers(self) -> None:
+        ports, issues = parse_port(self.port_file)
+        self.assertEqual([], issues)
+        self.assertEqual(["ExampleTest"], [port.cls for port in ports])
+        self.assertEqual(
+            [
+                ("testKnown", "ported", ""),
+                ("testAdapted", "adapted", "this port exercises the same case with an existing primitive."),
+                ("testTodo", "todo", "the API needed by this case is not available."),
+                ("testStale", "ported", ""),
+            ],
+            [(test.name, test.status, test.reason) for test in ports[0].tests],
+        )
+        self.assertTrue(all(test.line > 0 for test in ports[0].tests))
+
+    def test_report_includes_statuses_missing_and_stale_tests(self) -> None:
+        report = build_report([self.port_file], self.root, self.root, self.source_loader)
+        cls = report["classes"][0]
+        self.assertEqual("ExampleTest", cls["name"])
+        self.assertEqual(
+            ["ported", "adapted", "todo", "missing"],
+            [test["status"] for test in cls["tests"]],
+        )
+        self.assertEqual([{"name": "testStale", "line": 8}], cls["stale_tests"])
+        self.assertEqual(1, cls["counts"]["missing"])
+        self.assertEqual(0, report["summary"]["n_a"])
+        self.assertIn("stale-test-mapping", {issue["code"] for issue in report["issues"]})
+        self.assertTrue(has_gaps(report))
+
+    def test_json_shape_and_markdown_tree(self) -> None:
+        report = build_report([self.port_file], self.root, self.root, self.source_loader)
+        decoded = json.loads(json.dumps(report))
+        self.assertEqual(1, decoded["schema_version"])
+        self.assertIn("n_a", decoded["summary"])
+        self.assertEqual("sample/ExampleTest.kt", decoded["classes"][0]["kotlin_source"])
+        markdown = markdown_report(report)
+        self.assertIn("# Kotlin coroutine test ports", markdown)
+        self.assertIn("- **ExampleTest**", markdown)
+        self.assertIn("  - ✓ `testKnown` — ported", markdown)
+        self.assertIn("  - ✗ `testMissing` — missing", markdown)
+        self.assertIn("## Issues", markdown)
+
+    def test_valid_report_passes_check_when_only_todo_and_na_remain(self) -> None:
+        valid_source = '''class ExampleTest {
+    @Test
+    fun testTodo() {}
+
+    @Test
+    fun testNa() {}
+}
+'''
+        self.port_file.write_text('''-- kotlin: sample/ExampleTest.kt@1.11.0
+describe("ExampleTest", function ()
+    -- todo: unavailable API.
+    pending("testTodo")
+    -- n/a: this case does not apply to the runtime.
+    pending("testNa")
+end)
+''')
+        report = build_report(
+            [self.port_file], self.root, self.root,
+            lambda _path, _tag, _checkout: valid_source,
+        )
+        self.assertEqual([], report["issues"])
+        self.assertFalse(has_gaps(report))
+
+    def test_check_fails_for_missing_reason_and_duplicate_mapping(self) -> None:
+        self.port_file.write_text('''-- kotlin: sample/ExampleTest.kt@1.11.0
+describe("ExampleTest", function ()
+    pending("testKnown")
+    pending("testKnown")
+end)
+''')
+        report = build_report([self.port_file], self.root, self.root, self.source_loader)
+        codes = {issue["code"] for issue in report["issues"]}
+        self.assertIn("status-reason-missing", codes)
+        self.assertIn("duplicate-test-mapping", codes)
+        self.assertTrue(has_gaps(report))
+
+    def test_unresolved_source_is_an_issue_and_fails_check(self) -> None:
+        report = build_report(
+            [self.port_file], self.root, self.root,
+            lambda _path, _tag, _checkout: None,
+        )
+        self.assertIn("kotlin-source-unresolved", {issue["code"] for issue in report["issues"]})
+        self.assertTrue(has_gaps(report))
+
+    def test_missing_kotlin_reference_is_an_issue(self) -> None:
+        self.port_file.write_text('describe("ExampleTest", function () end)\n')
+        report = build_report([self.port_file], self.root, self.root, self.source_loader)
+        self.assertIn("kotlin-reference-missing", {issue["code"] for issue in report["issues"]})
+        self.assertTrue(has_gaps(report))
+
+
+if __name__ == "__main__":
+    unittest.main()
