@@ -1,14 +1,13 @@
 -- Port of kotlinx.coroutines' SupervisorTest (see AGENTS.md, "Kotlin test
 -- ports"). luastd's supervisor boundary is `async.supervisor_scope`; it has
 -- no standalone SupervisorJob, Job parent, or start modes.
----@diagnostic disable: await-in-sync
-
 local async = require("luastd.async")
 local luastd_test = require("luastd_test")
 local runtest = luastd_test.runtest
 
 --- Kotlin's `try { ... } catch (e: ...)`: the error `fn` raised.
----@param fn fun()
+---@async
+---@param fn async fun()
 ---@return any
 local function error_of(fn)
     local ok, err = pcall(fn)
@@ -22,100 +21,100 @@ describe("SupervisorTest", function ()
     -- reported to the host's unhandled-failure handler instead.
     pending("testSupervisorJob")
 
-    -- adapted: deferred failures are consumed with `try_await` so the test
-    -- can assert both exceptions without a standalone exception handler.
     it(
         "testSupervisorScope",
-        runtest(function (t)
-            local first, second
+        runtest({ unhandled = { "TestException1", "TestException2" } }, function (t)
             local value = async.supervisor_scope(function (scope)
-                first = scope:async(function () error(luastd_test.TestException1()) end)
-                second = scope:async(function () error(luastd_test.TestException2()) end)
-                local ok1, err1 = async.try_await(first)
-                local ok2, err2 = async.try_await(second)
-                assert.is_false(ok1)
-                assert.is_equal("TestException1", err1.kind)
-                assert.is_false(ok2)
-                assert.is_equal("TestException2", err2.kind)
+                scope:launch(function () error(luastd_test.TestException1()) end)
+                scope:launch(function () error(luastd_test.TestException2()) end)
                 return "OK"
             end)
             assert.is_equal("OK", value)
-            assert.is_true(first:is_cancelled())
-            assert.is_true(second:is_cancelled())
             t:finish(1)
         end)
     )
 
-    -- adapted: use a deferred failure and `try_await` to inspect the error;
-    -- this keeps the sibling-isolation assertion inside the test.
     it(
         "testSupervisorScopeIsolation",
-        runtest(function (t)
-            local sibling_finished = false
-            local failed
-            async.supervisor_scope(function (scope)
-                scope:launch(function ()
-                    async.delay(20)
-                    sibling_finished = true
+        runtest({ unhandled = { "TestException2" } }, function (t)
+            local result = async.supervisor_scope(function (scope)
+                t:expect(1)
+                local job = scope:launch(function ()
+                    t:expect(2)
+                    async.delay(math.huge)
                 end)
-                failed = scope:async(function ()
-                    async.delay(5)
+                local failing_job = scope:launch(function ()
+                    t:expect(3)
                     error(luastd_test.TestException2())
                 end)
-                local ok, err = async.try_await(failed)
-                assert.is_false(ok)
-                assert.is_equal("TestException2", err.kind)
-                assert.is_true(scope:is_active())
-                assert.is_true(not failed:is_active() and failed:is_completed() and failed:is_cancelled())
+                async.join(failing_job)
+                async.yield()
+                t:expect(4)
+                assert.is_true(job:is_active())
+                assert.is_false(job:is_cancelled())
+                job:cancel()
+                return "OK"
             end)
-            assert.is_true(sibling_finished)
-            t:finish(1)
+            assert.is_equal("OK", result)
+            t:finish(5)
         end)
     )
 
     it(
         "testThrowingSupervisorScope",
-        runtest(function (t)
-            local child
+        runtest({}, function (t)
+            local child, supervisor_job
             local err = error_of(function ()
+                t:expect(1)
                 async.supervisor_scope(function (scope)
                     child = scope:async(function ()
-                        async.delay(1000)
+                        async.finally(function ()
+                            async.delay(math.huge)
+                        end,
+                            function ()
+                                t:expect(3)
+                            end)
                     end)
+                    t:expect(2)
                     async.yield()
+                    supervisor_job = scope:coroutine_context():job()
                     error(luastd_test.TestException2())
                 end)
             end)
             assert.is_equal("TestException2", err.kind)
             assert.is_true(child:is_cancelled())
-            t:finish(1)
+            assert.is_true(supervisor_job ~= nil and supervisor_job:is_cancelled())
+            t:finish(4)
         end)
     )
 
-    -- adapted: cancel the parent job and check that cancellation reaches the
-    -- supervisor's child cleanup; luastd has no CoroutineExceptionHandler.
+    -- adapted: luastd has no `CoroutineStart.UNDISPATCHED`; yield to start the
+    -- child before cancelling its parent, then check its cancellation cleanup.
     it(
         "testSupervisorScopeExternalCancellation",
-        runtest(function (t)
-            local child_finished = false
+        runtest({}, function (t)
+            local child, child_finished
             local outer = async.launch(function ()
                 async.supervisor_scope(function (scope)
-                    scope:launch(function ()
+                    child = scope:launch(function ()
                         async.finally(function ()
-                            async.delay(1000)
+                            async.delay(math.huge)
                         end,
                             function ()
+                                t:expect(2)
                                 child_finished = true
                             end)
                     end)
                 end)
             end)
             async.yield()
+            t:expect(1)
             outer:cancel()
+            assert.is_true(child:is_cancelled())
             async.join(outer)
             assert.is_true(outer:is_cancelled())
             assert.is_true(child_finished)
-            t:finish(1)
+            t:finish(3)
         end)
     )
 
@@ -132,7 +131,7 @@ describe("SupervisorTest", function ()
     -- not enter the body's later error path (ADR 0005).
     it(
         "testSupervisorScopeCancellationVsException",
-        runtest(function (t)
+        runtest({}, function (t)
             local after_scope = false
             local job = async.launch(function (self)
                 async.supervisor_scope(function ()
@@ -152,11 +151,12 @@ describe("SupervisorTest", function ()
     -- defer: no standalone SupervisorJob or CoroutineExceptionHandler.
     pending("testSupervisorJobCancellationException")
 
-    -- adapted: `async.finally` runs the cancelled child's cleanup, while the
-    -- supervisor body error remains the one observed by its caller.
+    -- adapted: when cancellation interrupts the child, `async.finally` runs
+    -- cleanup but keeps the body's cancellation over a cleanup error (ADR 0005).
+    -- Kotlin reports that cleanup error as unhandled; luastd keeps the body error.
     it(
         "testSupervisorThrowsWithFailingChild",
-        runtest(function (t)
+        runtest({}, function (t)
             local cleanup_ran = false
             local err = error_of(function ()
                 async.supervisor_scope(function (scope)
@@ -179,23 +179,27 @@ describe("SupervisorTest", function ()
         end)
     )
 
-    -- adapted: this verifies the supervisor body error and child cancellation
-    -- directly, while the other `testSupervisorThrows` form needs two
-    -- unhandled launch failures and a custom exception handler.
     it(
         "testSupervisorThrows",
-        runtest(function (t)
-            local child
+        runtest({}, function (t)
             local err = error_of(function ()
+                t:expect(1)
                 async.supervisor_scope(function (scope)
-                    child = scope:launch(function () async.delay(1000) end)
+                    scope:launch(function ()
+                        t:expect(2)
+                        async.delay(math.huge)
+                    end)
+                    scope:launch(function ()
+                        t:expect(3)
+                        async.delay(math.huge)
+                    end)
                     async.yield()
+                    t:expect(4)
                     error(luastd_test.TestException1())
                 end)
             end)
             assert.is_equal("TestException1", err.kind)
-            assert.is_true(child:is_cancelled())
-            t:finish(1)
+            t:finish(5)
         end)
     )
 end)

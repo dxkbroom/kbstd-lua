@@ -37,13 +37,13 @@ local Scope = {}
 function Scope:coroutine_context() end
 
 --- Launch a child job in this scope, whichever coroutine calls it.
----@param body fun(scope: luastd.async.Scope)
+---@param body async fun(scope: luastd.async.Scope)
 ---@return luastd.async.Job
 function Scope:launch(body) end
 
 --- Start a child job in this scope that produces values.
 ---@generic T...
----@param body fun(scope: luastd.async.Scope): T...
+---@param body async fun(scope: luastd.async.Scope): T...
 ---@return luastd.async.Deferred<T...>
 function Scope:async(body) end
 
@@ -65,7 +65,7 @@ function Scope:is_completed() end
 --- Run `handler` when this scope ends without completing normally (cancelled,
 --- timed out or failed). Handlers run last-registered first, cannot be
 --- cancelled, and their errors are ignored.
----@param handler fun()
+---@param handler async fun()
 function Scope:on_cancel(handler) end
 
 --- A coroutine's lifetime and cancellation handle. Its children are launched
@@ -89,7 +89,7 @@ function Job:is_cancelled() end
 function Job:is_completed() end
 
 --- Run `handler` when this Job ends without completing normally.
----@param handler fun()
+---@param handler async fun()
 function Job:on_cancel(handler) end
 
 --- A handle to a launched coroutine that also produces values; collect them
@@ -104,13 +104,13 @@ function Job:on_cancel(handler) end
 ---
 --- In a non-supervisor scope, a failure cancels the scope and its other
 --- children. In a supervisor scope, an unhandled failure is reported on stderr.
----@param body fun(scope: luastd.async.Scope)
+---@param body async fun(scope: luastd.async.Scope)
 ---@return luastd.async.Job
 function async.launch(body) end
 
 --- Start `body` as a child of the current scope; collect it with `async.await`.
 ---@generic T...
----@param body fun(scope: luastd.async.Scope): T...
+---@param body async fun(scope: luastd.async.Scope): T...
 ---@return luastd.async.Deferred<T...>
 function async.async(body) end
 
@@ -172,7 +172,7 @@ function async.await_all(...) end
 --- The canonical form; `async.try_scope` returns the failure instead.
 ---@async
 ---@generic T...
----@param body fun(scope: luastd.async.Scope): T...
+---@param body async fun(scope: luastd.async.Scope): T...
 ---@return T...
 function async.scope(body) end
 
@@ -189,7 +189,7 @@ function async.scope(body) end
 --- the body cancels its own scope, the cancellation propagates.
 ---@async
 ---@generic T...
----@param body fun(scope: luastd.async.Scope): T...
+---@param body async fun(scope: luastd.async.Scope): T...
 ---@return_overload true, T...
 ---@return_overload false, luastd.Error
 function async.try_scope(body) end
@@ -197,7 +197,7 @@ function async.try_scope(body) end
 --- Like `scope`, but children fail independently of each other and the scope.
 ---@async
 ---@generic T...
----@param body fun(scope: luastd.async.Scope): T...
+---@param body async fun(scope: luastd.async.Scope): T...
 ---@return T...
 function async.supervisor_scope(body) end
 
@@ -210,7 +210,7 @@ function async.supervisor_scope(body) end
 ---@async
 ---@generic T...
 ---@param ms   number
----@param body fun(scope: luastd.async.Scope): T...
+---@param body async fun(scope: luastd.async.Scope): T...
 ---@return T...
 function async.with_timeout(ms, body) end
 
@@ -251,7 +251,7 @@ function async.context(...) end
 ---@async
 ---@generic T...
 ---@param context luastd.async.CoroutineContext
----@param body    fun(scope: luastd.async.Scope): T...
+---@param body    async fun(scope: luastd.async.Scope): T...
 ---@return T...
 function async.with_context(context, body) end
 
@@ -288,8 +288,8 @@ function async.is_cancellation(err) end
 --- `cleanup` cannot be cancelled. Errors from `body` win over `cleanup`'s.
 ---@async
 ---@generic T...
----@param body    fun(): T...
----@param cleanup fun()
+---@param body    async fun(): T...
+---@param cleanup async fun()
 ---@return T...
 function async.finally(body, cleanup) end
 
