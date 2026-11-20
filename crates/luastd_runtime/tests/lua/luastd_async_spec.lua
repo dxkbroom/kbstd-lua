@@ -141,7 +141,6 @@ describe("luastd.async", function ()
                 end)
                 local ok, err = async.try_await(d)
                 assert.is_false(ok)
-                ---@cast err luastd.Error -- emmylua drops the overload when the job returns nothing
                 assert.is_equal("Timeout", err.kind)
                 assert.is_equal("Timeout: Timed out immediately", tostring(err))
             end)
@@ -153,7 +152,6 @@ describe("luastd.async", function ()
                 d:cancel()
                 local ok, err = async.try_await(d)
                 assert.is_false(ok)
-                ---@cast err luastd.Error -- emmylua drops the overload when the job returns nothing
                 assert.is_equal("JobCancelled", err.kind)
             end)
         end)
@@ -198,7 +196,6 @@ describe("luastd.async", function ()
         it("try_scope returns false and the body's error", function ()
             local ok, err = async.try_scope(function () async.with_timeout(0, function () end) end)
             assert.is_false(ok)
-            ---@cast err luastd.Error -- emmylua drops the overload when the job returns nothing
             assert.is_equal("Timeout", err.kind)
         end)
 

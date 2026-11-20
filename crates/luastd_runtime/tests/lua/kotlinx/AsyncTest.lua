@@ -86,7 +86,6 @@ describe("AsyncTest", function ()
                 end)
                 local ok, err = async.try_await(decomposed)
                 assert.is_false(ok)
-                ---@cast err luastd.Error -- emmylua drops the overload when the job returns nothing
                 assert.is_equal("TestException", err.kind)
                 return 42
             end)
