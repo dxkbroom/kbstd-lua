@@ -91,7 +91,8 @@ Run `mise run fmt` and `mise run lint` before committing.
   frames (ADR 0006); raise from Rust with `Err(LuaError::new(..).into())`.
 - **Async is the blessed path.** Effect functions are `---@async` and raise
   structured errors; blocking variants are named `*_sync`; `try_*` variants
-  return `ok, value | err` and are annotated with `---@return_overload`.
+  return `ok, value | err`, are annotated with `---@return_overload` and never
+  catch cancellation (ADR 0005, ADR 0008).
 - **One canonical form per operation** (ADR 0007). Add another spelling only
   when it composes differently (prefix form, explicit receiver, `*_sync` or
   `try_*`, one-shot helper, operator); stubs mark the canonical form and

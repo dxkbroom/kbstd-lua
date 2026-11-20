@@ -90,8 +90,9 @@ compose differently (ADR 0007).
 _Avoid_: Preferred alias, main name
 
 **Prefix form**:
-A module function that does what a method does, taking the receiver first, such
-as `async.await(d)` for `d:await()`, so it can be passed as a value.
+A module function that does what a method does, taking the receiver first, so
+it can be passed as a value. `async.await(d)` and `async.join(job)` have no
+method twin (ADR 0008).
 _Avoid_: Static form, free function
 
 ### tinyvi example

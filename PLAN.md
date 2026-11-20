@@ -64,8 +64,9 @@ local fs      = require("luastd.fs")     -- effect: host feature + permission
 local env     = require("luastd.env")
 local process = require("luastd.process")
 
-async.launch(fn)                -- Job: join(), cancel(), is_active()
-async.async(fn)                 -- Deferred: await()
+async.launch(fn)                -- Job: cancel(), is_active(); async.join(job)
+async.async(fn)                 -- Deferred: async.await(d), async.try_await(d)
+async.try_scope(fn)             -- ok, values... | false, err
 async.scope(fn)                 -- waits for children; a failure cancels siblings
 async.supervisor_scope(fn)      -- children fail independently
 async.with_timeout(ms, fn)

@@ -5,7 +5,7 @@ status: accepted
 # One canonical form per operation; other forms must compose differently
 
 Several luastd operations can be spelled more than one way: `d:await()` and
-`async.await(d)`, `scope:launch(fn)` and `async.launch(fn)`, `ch:iter()` and
+`async.await(d)` (until ADR 0008), `scope:launch(fn)` and `async.launch(fn)`, `ch:iter()` and
 `ch:each(fn)`. Some of these are exact aliases, some differ in which scope they
 bind to or how they end, and some only share a name. Without a record, readers
 assume aliases are interchangeable and authors add more of them.
@@ -21,9 +21,10 @@ together with the differences that make each form worth keeping.
 
 A non-canonical form is acceptable only when it does one of these:
 
-- **Passes as a value.** A prefix function for a method, such as
-  `async.await(d)` for `d:await()`, so it can be handed to `map`, `pcall` or a
-  callback.
+- **Passes as a value.** A prefix function for a method, so it can be handed
+  to `map`, `pcall` or a callback. When the prefix form is the one that passes
+  as a value, it can replace the method outright, as `async.await(d)` and
+  `async.join(job)` did (ADR 0008).
 - **Binds differently.** An explicit-receiver form next to a current-context
   form, such as `scope:launch` next to `async.launch`.
 - **Reads its blocking or failure mode in its name.** `*_sync` for a variant
@@ -36,7 +37,7 @@ A non-canonical form is acceptable only when it does one of these:
 
 Pure synonyms, two names for the same call with the same composition, are not
 added. Stubs mark the canonical form and cross-link: the alternative's doc
-starts by naming the form it stands for ("Prefix form of `job:join()`"), the
+starts by naming the form it stands for ("Prefix form of `x:method()`"), the
 canonical doc mentions the alternative in one line, and any semantic difference
 is stated on both. Two functions that share a name but not a meaning say so
 explicitly ("not the same as ...").
@@ -45,11 +46,11 @@ explicitly ("not the same as ...").
 
 | Group | Forms | Same behavior? | Canonical |
 | --- | --- | --- | --- |
-| Await a value | `d:await()`, `async.await(d)` | Yes | `d:await()` |
-| Wait for a job | `job:join()`, `async.join(job)` | Yes | `job:join()` |
+| Await a value | `async.await(d)`; `async.try_await(d)` (ADR 0008) | No: failure returned | `async.await`; `try_await` to recover |
+| Wait for a job | `async.join(job)` (ADR 0008) | Only form | `async.join` |
 | Launch a child | `scope:launch(fn)`, `async.launch(fn)`, `async.current():launch(fn)` | Differ in parent scope | `scope:launch` with a scope at hand, else `async.launch` |
 | Start a value-producing child | `scope:async(fn)`, `async.async(fn)` | Differ in parent scope | As for launch |
-| Run work and wait | `async.scope(fn)`, `async.async(fn):await()` | No | `async.scope` |
+| Run work and wait | `async.scope(fn)`, `async.await(async.async(fn))`; `async.try_scope(fn)` (ADR 0008) | No | `async.scope`; `try_scope` to recover |
 | Await several | `async.await_all(a, b)`, awaiting each | No: first values only | `await_all` for single values |
 | Consume a channel | `ch:each(fn)`, `for v in ch:iter()`, `ch:receive()` loop | No: early exit | `ch:each` |
 | Producer channel | `async.produce(body)`, `channel` + `launch` + `close` | No: cancel link | `async.produce` |
@@ -76,14 +77,14 @@ in line with "`require`, not globals".
 ### Method and prefix forms
 
 ```lua
-local v = d:await()          -- canonical
-local v = async.await(d)     -- same call
+local v = async.await(d)                    -- the only form (ADR 0008)
 local values = map(deferreds, async.await)
 ```
 
-`async.await` and `async.join` call the same implementation as the methods, so
-results, errors and `Deferred<T...>` typing are identical. Use the prefix form
-where a function value is needed.
+This ADR first kept `d:await()` and `job:join()` canonical, with
+`async.await` and `async.join` as same-call prefix forms. ADR 0008 removed the
+methods: the prefix forms pass as values and pair with `async.try_await`, so
+they are the one spelling.
 
 ### Where a child is launched
 
@@ -108,7 +109,7 @@ library code that should attach to its caller's scope. `scope:async` and
 
 `async.scope(fn)` is not a launch: it runs `fn` in the caller, waits for its
 children, returns `fn`'s values and raises a failure right there.
-`async.async(fn):await()` gives the same values, but the job is a child of the
+`async.await(async.async(fn))` gives the same values, but the job is a child of the
 current scope, so in a non-supervisor scope its failure also cancels that scope
 and its other children. Use `async.scope` to run and wait, and `async`/`launch`
 only for concurrency.
@@ -117,7 +118,7 @@ only for concurrency.
 
 ```lua
 local a, b = async.await_all(da, db)   -- first value of each
-local a1, a2 = da:await()              -- every value
+local a1, a2 = async.await(da)         -- every value
 ```
 
 `await_all` keeps one result per argument by returning only the first value
@@ -238,7 +239,9 @@ Inconsistencies found while building the inventory. None changes the API here.
    one metatable, so a `launch` job also has `await` (returning the body's
    values), and a scope parameter or `async.current()` has `join` and `await`.
    Joining a scope from inside itself is untested. Either hide these or
-   document them.
+   document them. *Partly resolved by ADR 0008:* the methods are gone, but
+   `async.await`, `async.try_await` and `async.join` still accept any job or
+   scope (`async.await(launch_job)` returns nothing).
 3. `async.is_active()` and `Scope:is_active()` differ inside non-cancellable
    sections, and neither doc says so. `async.is_active()` is described as
    "the current coroutine's scope has not been cancelled", which is not what
@@ -253,6 +256,7 @@ Inconsistencies found while building the inventory. None changes the API here.
 6. `async.await_all` is typed `any ...` and so drops `Deferred<T...>` types.
 7. `async.join` and `async.await` do not validate their argument the way
    `launch` and `scope` do, so a non-job raises an index error, not
-   `InvalidArgument`.
+   `InvalidArgument`. *Resolved by ADR 0008:* `await`, `join`, `try_await` and
+   `await_all` raise `InvalidArgument`.
 8. `semver.default()` is a pure synonym of `semver.new()` under this rule:
    deprecate it, or keep it as the mirror of Rust's `Default` and say so.
