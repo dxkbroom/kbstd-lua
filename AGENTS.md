@@ -53,7 +53,7 @@ Run `mise run fmt` and `mise run lint` before committing.
 - `xtasks/tasks/` - mise file tasks.
 - `.lazy.lua`, `.nvim/` - Neovim dev setup: the emmylua fork, `require("luastd")`
   from this checkout, `:Luastd [module] [example]` (`.nvim/examples.lua`), and
-  module navigation under `<leader>p` with a neo-tree source (`.nvim/project.lua`,
+  module navigation under `<leader>p` (`<leader>pgk`: from a Kotlin test port to its Kotlin `fun`) with a neo-tree source (`.nvim/project.lua`,
   `.nvim/neotree.lua`). A module is its stub, `<module>.rs` and
   `luastd_<module>_spec.lua`.
 - `lux.toml`, `luastd-*.rockspec` - Lua packaging; build `luastd_lua` via

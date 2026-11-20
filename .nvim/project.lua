@@ -292,6 +292,95 @@ function M.create(f, on_done)
     )
 end
 
+--- The kotlinx.coroutines checkout the Kotlin test ports point at:
+--- `vim.g.luastd_kotlinx_dir`, else `$KOTLINX_DIR`, else `../kotlinx.coroutines`
+--- next to this checkout.
+---@return string
+function M.kotlinx_dir()
+    return vim.fs.normalize(vim.g.luastd_kotlinx_dir or vim.env.KOTLINX_DIR or (root .. "/../kotlinx.coroutines"))
+end
+
+--- In a Kotlin test port (`tests/lua/kotlinx/<Class>.lua`): the `-- kotlin:`
+--- reference above the cursor and the `it`/`pending` name around it.
+---@return { path: string, tag: string, class: string?, test: string? }?
+local function kotlin_target()
+    local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+    local row = vim.api.nvim_win_get_cursor(0)[1]
+    local test, class
+    for i = row, 1, -1 do
+        local line = lines[i]
+        if not test then
+            test = line:match('^%s*it%(%s*"([^"]+)"') or line:match('^%s*pending%(%s*"([^"]+)"')
+            if not test and (line:match("^%s*it%(%s*$") or line:match("^%s*pending%(%s*$")) and lines[i + 1] then
+                test = lines[i + 1]:match('^%s*"([^"]+)"')
+            end
+        end
+        class = class or line:match('^%s*describe%(%s*"([^"]+)"')
+        local path, tag = line:match("^%s*%-%- kotlin:%s*(%S+)@(%S+)%s*$")
+        if path then
+            return { path = path, tag = tag, class = class, test = test }
+        end
+    end
+    -- the cursor is above the first describe: use the first reference
+    for i, line in ipairs(lines) do
+        local path, tag = line:match("^%s*%-%- kotlin:%s*(%S+)@(%S+)%s*$")
+        if path then
+            return { path = path, tag = tag, class = (lines[i + 1] or ""):match('^%s*describe%(%s*"([^"]+)"') }
+        end
+    end
+end
+
+--- Jump from a Kotlin test port to the Kotlin source: the `fun` of the
+--- `it`/`pending` under the cursor, else the class. Reads
+--- `<kotlinx>/.git/cdtag/<tag>/<path>`, falling back to `git show <tag>:<path>`
+--- in a scratch buffer.
+function M.kotlin()
+    local target = kotlin_target()
+    if not target then
+        vim.notify("luastd: no `-- kotlin: <path>@<tag>` line here (not a Kotlin test port)", vim.log.levels.WARN)
+        return
+    end
+    local dir = M.kotlinx_dir()
+    if vim.fn.isdirectory(dir) == 0 then
+        vim.notify(
+            ("luastd: kotlinx.coroutines checkout not found at %s (set vim.g.luastd_kotlinx_dir or $KOTLINX_DIR)")
+                :format(dir),
+            vim.log.levels.WARN
+        )
+        return
+    end
+    local file = ("%s/.git/cdtag/%s/%s"):format(dir, target.tag, target.path)
+    if exists(file) then
+        vim.cmd("edit " .. vim.fn.fnameescape(file))
+    else
+        local out = vim.fn.systemlist({ "git", "-C", dir, "show", target.tag .. ":" .. target.path })
+        if vim.v.shell_error ~= 0 then
+            vim.notify(("luastd: %s@%s not found in %s"):format(target.path, target.tag, dir), vim.log.levels.WARN)
+            return
+        end
+        local name = ("kotlinx://%s/%s"):format(target.tag, target.path)
+        local buf = vim.fn.bufnr(name)
+        if buf == -1 then
+            buf = vim.api.nvim_create_buf(true, true)
+            vim.api.nvim_buf_set_name(buf, name)
+            vim.api.nvim_buf_set_lines(buf, 0, -1, false, out)
+            vim.bo[buf].modifiable = false
+            vim.bo[buf].filetype = "kotlin"
+        end
+        vim.api.nvim_set_current_buf(buf)
+    end
+    vim.api.nvim_win_set_cursor(0, { 1, 0 })
+    local found = target.test and vim.fn.search("\\<fun\\s\\+" .. target.test .. "\\>", "cW") > 0
+    if not found and target.class then
+        found = vim.fn.search("\\<class\\s\\+" .. target.class .. "\\>", "cW") > 0
+    end
+    if found then
+        vim.cmd("normal! zz")
+    elseif target.test then
+        vim.notify(("luastd: no fun %s in %s"):format(target.test, target.path), vim.log.levels.WARN)
+    end
+end
+
 local function explorer()
     local ok, command = pcall(require, "neo-tree.command")
     if not ok then
@@ -314,6 +403,7 @@ function M.keymaps()
     map("<leader>pgi", function () M.jump("impl") end, "[I]mplementation")
     map("<leader>pgd", function () M.jump("def") end, "[D]efinition")
     map("<leader>pgs", function () M.jump("spec") end, "[S]pec")
+    map("<leader>pgk", M.kotlin, "[K]otlin test (from a kotlinx/ port)")
     map("<leader>pv", function () M.with_module(M.layout, "luastd: open module") end, "[V]iew module (impl, def, spec)")
     map("<leader>pm", function () M.pick(M.layout, "luastd: open module") end, "pick [M]odule")
     local ok, wk = pcall(require, "which-key")
