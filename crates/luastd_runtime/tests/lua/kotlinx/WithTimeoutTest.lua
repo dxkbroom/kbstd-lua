@@ -5,6 +5,7 @@
 
 local async = require("luastd.async")
 local luastd_test = require("luastd_test")
+local runtest = luastd_test.runtest
 
 --- Kotlin's `try { ... } catch (e: ...)`: the error `fn` raised.
 ---@param fn fun()
@@ -20,7 +21,7 @@ describe("WithTimeoutTest", function ()
     -- Tests a case of no timeout and no suspension inside.
     it(
         "testBasicNoSuspend",
-        luastd_test.runtest(function (t)
+        runtest(function (t)
             t:expect(1)
             local result = async.with_timeout(10000, function ()
                 t:expect(2)
@@ -34,7 +35,7 @@ describe("WithTimeoutTest", function ()
     -- Tests a case of no timeout and one suspension inside.
     it(
         "testBasicSuspend",
-        luastd_test.runtest(function (t)
+        runtest(function (t)
             t:expect(1)
             local result = async.with_timeout(10000, function ()
                 t:expect(2)
@@ -50,7 +51,7 @@ describe("WithTimeoutTest", function ()
     -- Tests proper dispatching of `with_timeout` blocks.
     it(
         "testDispatch",
-        luastd_test.runtest(function (t)
+        runtest(function (t)
             t:expect(1)
             async.launch(function ()
                 t:expect(4)
@@ -75,7 +76,7 @@ describe("WithTimeoutTest", function ()
     -- Tests that a 100% CPU-consuming loop will react on timeout if it has yields.
     it(
         "testYieldBlockingWithTimeout",
-        luastd_test.runtest({ expected = "Timeout" }, function ()
+        runtest({ expected = "Timeout" }, function ()
             async.with_timeout(100, function ()
                 while true do
                     async.yield()
@@ -87,7 +88,7 @@ describe("WithTimeoutTest", function ()
     -- Tests that `with_timeout` waits for children coroutines to complete.
     it(
         "testWithTimeoutChildWait",
-        luastd_test.runtest(function (t)
+        runtest(function (t)
             t:expect(1)
             async.with_timeout(100, function ()
                 t:expect(2)
@@ -106,7 +107,7 @@ describe("WithTimeoutTest", function ()
     -- table whose metamethods raise, compared with rawequal.
     it(
         "testBadClass",
-        luastd_test.runtest(function ()
+        runtest(function ()
             local function bad()
                 error("BadClass")
             end
@@ -120,7 +121,7 @@ describe("WithTimeoutTest", function ()
 
     it(
         "testExceptionOnTimeout",
-        luastd_test.runtest(function (t)
+        runtest(function (t)
             t:expect(1)
             local err = error_of(function ()
                 async.with_timeout(100, function ()
@@ -141,7 +142,7 @@ describe("WithTimeoutTest", function ()
     -- either way and `with_timeout` still raises Timeout.
     it(
         "testSuppressExceptionWithResult",
-        luastd_test.runtest({ expected = "Timeout" }, function (t)
+        runtest({ expected = "Timeout" }, function (t)
             t:expect(1)
             async.with_timeout(100, function ()
                 t:expect(2)
@@ -159,7 +160,7 @@ describe("WithTimeoutTest", function ()
 
     it(
         "testNegativeTimeout",
-        luastd_test.runtest(function (t)
+        runtest(function (t)
             t:expect(1)
             local err = error_of(function ()
                 async.with_timeout(-1, function ()
@@ -175,7 +176,7 @@ describe("WithTimeoutTest", function ()
 
     it(
         "testExceptionFromWithinTimeout",
-        luastd_test.runtest(function (t)
+        runtest(function (t)
             t:expect(1)
             local err = error_of(function ()
                 t:expect(2)
@@ -194,7 +195,7 @@ describe("WithTimeoutTest", function ()
     -- has no `join`; checks the state of the returned timeout scope instead.
     it(
         "testIncompleteWithTimeoutState",
-        luastd_test.runtest(function ()
+        runtest(function ()
             local timeout_scope = async.with_timeout(math.huge, function (scope)
                 return scope
             end)

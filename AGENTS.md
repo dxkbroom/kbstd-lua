@@ -114,15 +114,16 @@ so each reads next to its Kotlin source:
   The `describe` is the Kotlin class name; each `it` is the Kotlin `fun` name,
   unchanged.
 - Every Kotlin `@Test` appears once, as one of:
-  - `it(name, luastd_test.runtest(...))` - ported;
+  - `it(name, runtest(...))` - ported;
   - the same with a `-- adapted: <why>` comment above - ported with a deliberate
     difference;
   - `pending(name)` with `-- n/a: <why>` (cannot apply to luastd, e.g. ADR 0005)
     or `-- todo: <why>` (needs an API luastd lacks yet) above.
-- `luastd_test.runtest(function (t) ... end)` mirrors `runTest { }`: `t:expect(n)`,
-  `t:finish(n)`, `t:expect_unreached()`; options `expected`, `unhandled` (a
-  luastd.Error kind, or a predicate) and `timeout` (default 10 s). Call it
-  through the module; a local alias loses its overload in emmylua.
+- Bind `local runtest = luastd_test.runtest` and call `runtest(function (t) ... end)`
+  (mirrors `runTest { }`): `t:expect(n)`, `t:finish(n)`, `t:expect_unreached()`;
+  options `expected`, `unhandled` (a luastd.Error kind, or a predicate) and
+  `timeout` (default 10 s). The local alias needs emmylua with #1443
+  (main-kbroom).
 - Kotlin's `TimeoutCancellationException` is luastd's `Timeout` error kind;
   `TestException`/`1`/`2`/`3` are `luastd_test.TestException()` etc.
 - `mise run test:kotlin` reports ported/adapted/n/a/todo/missing per class;

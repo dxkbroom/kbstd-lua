@@ -7,6 +7,7 @@
 
 local async = require("luastd.async")
 local luastd_test = require("luastd_test")
+local runtest = luastd_test.runtest
 
 --- Kotlin's `try { ... } catch (e: ...)`: the error `fn` raised.
 ---@param fn fun()
@@ -21,7 +22,7 @@ end
 describe("AsyncTest", function ()
     it(
         "testSimple",
-        luastd_test.runtest(function (t)
+        runtest(function (t)
             t:expect(1)
             local d = async.async(function ()
                 t:expect(3)
@@ -42,7 +43,7 @@ describe("AsyncTest", function ()
 
     it(
         "testSimpleException",
-        luastd_test.runtest({ expected = "TestException" }, function (t)
+        runtest({ expected = "TestException" }, function (t)
             t:expect(1)
             local d = async.async(function ()
                 t:finish(3)
@@ -60,7 +61,7 @@ describe("AsyncTest", function ()
     -- supervisor scope, where an unawaited failure is not reported either.
     it(
         "testLostException",
-        luastd_test.runtest(function (t)
+        runtest(function (t)
             t:expect(1)
             async.supervisor_scope(function ()
                 local deferred = async.async(function ()
@@ -78,7 +79,7 @@ describe("AsyncTest", function ()
     -- supervisor scope so its failure stays with it until awaited.
     it(
         "testParallelDecompositionCaughtException",
-        luastd_test.runtest(function ()
+        runtest(function ()
             local deferred = async.async(function ()
                 local decomposed = async.supervisor_scope(function ()
                     return async.async(function () error(luastd_test.TestException()) end)
@@ -100,7 +101,7 @@ describe("AsyncTest", function ()
     -- scope, so the TestException reaches runtest through it either way.
     it(
         "testParallelDecompositionUncaughtExceptionWithInheritedParent",
-        luastd_test.runtest({ expected = "TestException" }, function (t)
+        runtest({ expected = "TestException" }, function (t)
             local deferred = async.async(function ()
                 local decomposed = async.async(function ()
                     error(luastd_test.TestException())
@@ -116,7 +117,7 @@ describe("AsyncTest", function ()
     -- (the Kotlin bodies are the same).
     it(
         "testParallelDecompositionUncaughtException",
-        luastd_test.runtest({ expected = "TestException" }, function (t)
+        runtest({ expected = "TestException" }, function (t)
             local deferred = async.async(function ()
                 local decomposed = async.async(function ()
                     error(luastd_test.TestException())
@@ -133,7 +134,7 @@ describe("AsyncTest", function ()
 
     it(
         "testDeferAndYieldException",
-        luastd_test.runtest({ expected = "TestException" }, function (t)
+        runtest({ expected = "TestException" }, function (t)
             t:expect(1)
             local d = async.async(function ()
                 t:expect(3)
@@ -152,7 +153,7 @@ describe("AsyncTest", function ()
     -- the meantime run first: both waiters resume before main gets back.
     it(
         "testDeferWithTwoWaiters",
-        luastd_test.runtest(function (t)
+        runtest(function (t)
             t:expect(1)
             local d = async.async(function ()
                 t:expect(5)
@@ -186,7 +187,7 @@ describe("AsyncTest", function ()
     -- table whose metamethods raise, compared with rawequal.
     it(
         "testDeferBadClass",
-        luastd_test.runtest(function (t)
+        runtest(function (t)
             local function bad()
                 error("BadClass")
             end
@@ -214,7 +215,7 @@ describe("AsyncTest", function ()
     -- `JobCancelled` instead of `CancellationException`.
     it(
         "testAsyncWithFinally",
-        luastd_test.runtest(function (t)
+        runtest(function (t)
             t:expect(1)
             local d = async.async(function ()
                 t:expect(3)

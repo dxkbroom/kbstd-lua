@@ -4,6 +4,7 @@
 
 local async = require("luastd.async")
 local luastd_test = require("luastd_test")
+local runtest = luastd_test.runtest
 local hang = luastd_test.hang
 
 --- Run a `runtest` and return the message it failed with.
@@ -14,10 +15,10 @@ local function failure_of(options, body)
     local test
     if body then
         local with = options --[[@as luastd_test.Options]]
-        test = luastd_test.runtest(with, body)
+        test = runtest(with, body)
     else
         local only = options --[[@as fun(t: luastd_test.OrderedExecution)]]
-        test = luastd_test.runtest(only)
+        test = runtest(only)
     end
     local ok, err = pcall(test)
     assert.is_false(ok)
@@ -34,7 +35,7 @@ describe("luastd.test", function ()
     describe("OrderedExecution", function ()
         it(
             "passes when every action comes in order",
-            luastd_test.runtest(function (t)
+            runtest(function (t)
                 t:expect(1)
                 async.launch(function ()
                     t:expect(3)
@@ -64,7 +65,7 @@ describe("luastd.test", function ()
             )
         end)
 
-        it("allows no finish when expect was never called", luastd_test.runtest(function () end))
+        it("allows no finish when expect was never called", runtest(function () end))
 
         it("fails on finishing twice and on expect after finish", function ()
             contains(failure_of(function (t)
@@ -108,7 +109,7 @@ describe("luastd.test", function ()
 
         it(
             "reset starts counting again",
-            luastd_test.runtest(function (t)
+            runtest(function (t)
                 for _ = 1, 2 do
                     t:reset()
                     t:expect(1)
@@ -132,7 +133,7 @@ describe("luastd.test", function ()
 
         it("waits for children", function ()
             local done = false
-            luastd_test.runtest(function ()
+            runtest(function ()
                 async.launch(function ()
                     async.delay(5)
                     done = true
@@ -143,7 +144,7 @@ describe("luastd.test", function ()
 
         it(
             "passes the body's scope",
-            luastd_test.runtest(function (_, scope)
+            runtest(function (_, scope)
                 assert.is_true(scope:is_active())
             end)
         )
@@ -151,14 +152,14 @@ describe("luastd.test", function ()
         describe("expected", function ()
             it(
                 "matches a kind",
-                luastd_test.runtest({ expected = "TestException" }, function ()
+                runtest({ expected = "TestException" }, function ()
                     error(luastd_test.TestException())
                 end)
             )
 
             it(
                 "matches a predicate",
-                luastd_test.runtest({
+                runtest({
                     expected = function (e) return e.kind == "Timeout" and e.message == "Timed out immediately" end
                 },
                     function ()
@@ -195,7 +196,7 @@ describe("luastd.test", function ()
 
             it(
                 "passes when they match in order",
-                luastd_test.runtest(
+                runtest(
                     { unhandled = { "TestException2", "TestException1" } },
                     failing_children("TestException2", "TestException1")
                 )
@@ -221,7 +222,7 @@ describe("luastd.test", function ()
 
             it(
                 "ignores cancelled children",
-                luastd_test.runtest(function ()
+                runtest(function ()
                     async.supervisor_scope(function ()
                         async.launch(function () async.delay(1000) end):cancel()
                     end)
@@ -243,7 +244,7 @@ describe("luastd.test", function ()
     describe("helpers", function ()
         it(
             "hang runs its handler when cancelled",
-            luastd_test.runtest(function (t)
+            runtest(function (t)
                 local job = async.launch(function ()
                     t:expect(2)
                     hang(function () t:expect(4) end)

@@ -8,8 +8,9 @@
 --
 -- ```lua
 -- local luastd_test = require("luastd_test")
+-- local runtest = luastd_test.runtest
 --
--- it("testDispatch", luastd_test.runtest(function (t)
+-- it("testDispatch", runtest(function (t)
 --     t:expect(1)
 --     async.launch(function () t:expect(3) end)
 --     t:expect(2)
@@ -179,12 +180,12 @@ M.DEFAULT_TIMEOUT = 10000
 --- `timeout` ms.
 ---
 --- ```lua
---- it("testSimple", luastd_test.runtest(function (t) ... end))
---- it("testTimeout", luastd_test.runtest({ expected = "Timeout" }, function (t) ... end))
+--- local runtest = luastd_test.runtest
+--- it("testSimple", runtest(function (t) ... end))
+--- it("testTimeout", runtest({ expected = "Timeout" }, function (t) ... end))
 --- ```
 ---
---- Call it through the module: a local alias (`local runtest =
---- luastd_test.runtest`) loses the body-only overload in emmylua.
+--- A local alias needs emmylua with #1443 (main-kbroom).
 ---@overload fun(body: async fun(t: luastd_test.OrderedExecution, scope: luastd.async.Scope)): fun()
 ---@param options luastd_test.Options
 ---@param body    async fun(t: luastd_test.OrderedExecution, scope: luastd.async.Scope)
