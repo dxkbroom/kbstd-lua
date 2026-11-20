@@ -205,7 +205,7 @@ describe("WithTimeoutTest", function ()
         end)
     )
 
-    -- todo: luastd has no CoroutineName (nor withContext) to put in the
+    -- defer: luastd has no CoroutineName (nor withContext) to put in the
     -- Timeout message.
     pending("testTimeoutCancellationExceptionIncludesCoroutineName")
 end)

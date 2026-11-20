@@ -18,7 +18,7 @@ end
 
 -- kotlin: kotlinx-coroutines-core/common/test/SupervisorTest.kt@1.11.0
 describe("SupervisorTest", function ()
-    -- todo: no standalone `SupervisorJob()` or `joinAll`; launch failures are
+    -- defer: no standalone `SupervisorJob()` or `joinAll`; launch failures are
     -- reported to the host's unhandled-failure handler instead.
     pending("testSupervisorJob")
 
@@ -119,13 +119,13 @@ describe("SupervisorTest", function ()
         end)
     )
 
-    -- todo: a standalone `SupervisorJob()` parent and deferred parent links
+    -- defer: a standalone `SupervisorJob()` parent and deferred parent links
     -- are not part of the current API.
     pending("testAsyncCancellation")
 
-    -- todo: no standalone `Job()` parent or `SupervisorJob(parent)`.
+    -- defer: no standalone `Job()` parent or `SupervisorJob(parent)`.
     pending("testSupervisorWithParentCancelNormally")
-    -- todo: no standalone `Job()` parent or `SupervisorJob(parent)`.
+    -- defer: no standalone `Job()` parent or `SupervisorJob(parent)`.
     pending("testSupervisorWithParentCancelException")
 
     -- adapted: luastd delivers cancellation at the next suspension and does
@@ -149,7 +149,7 @@ describe("SupervisorTest", function ()
         end)
     )
 
-    -- todo: no standalone SupervisorJob or CoroutineExceptionHandler.
+    -- defer: no standalone SupervisorJob or CoroutineExceptionHandler.
     pending("testSupervisorJobCancellationException")
 
     -- adapted: `async.finally` runs the cancelled child's cleanup, while the
