@@ -20,11 +20,11 @@ from pathlib import Path
 ROOT = Path(os.environ.get("MISE_PROJECT_ROOT") or Path(__file__).resolve().parents[3])
 sys.path.insert(0, str(ROOT / "xtasks/lib"))
 
-from kotlin_coverage import build_report, has_gaps, markdown_report
+from kotlin_coverage import KOTLIN_TEST_TAG, build_report, has_gaps, markdown_report
 
 PORTS = ROOT / "crates/luastd_runtime/tests/lua/kotlinx"
 KOTLINX = Path(os.environ.get("KOTLINX_DIR") or ROOT.parent / "kotlinx.coroutines")
-STATUS_SYMBOL = {"ported": "✓", "adapted": "~", "n/a": "○", "todo": "·", "missing": "✗"}
+STATUS_SYMBOL = {"ported": "✓", "adapted": "~", "not-applicable": "○", "todo": "·", "missing": "✗"}
 
 
 def parser() -> argparse.ArgumentParser:
@@ -38,7 +38,7 @@ def parser() -> argparse.ArgumentParser:
 
 def counts_label(counts: dict[str, int], *, compact: bool = False) -> str:
     labels = []
-    for key, status in (("ported", "ported"), ("adapted", "adapted"), ("n_a", "n/a"), ("todo", "todo"), ("missing", "missing")):
+    for key, status in (("ported", "ported"), ("adapted", "adapted"), ("not_applicable", "not-applicable"), ("todo", "todo"), ("missing", "missing")):
         count = counts[key]
         if count or not compact:
             labels.append(f"{count} {status}")
@@ -50,9 +50,15 @@ def terminal_tree(report: dict[str, object]):
     from rich.tree import Tree
 
     summary = report["summary"]
-    root = Tree(Text(f"Kotlin coroutine test ports  [{summary['classes']} classes · {counts_label(summary)}]", style="bold"))
+    root = Tree(Text(
+        f"Kotlin coroutine test ports  [{summary['classes']} classes · "
+        f"{summary['unported_classes']} unported · {counts_label(summary)}]",
+        style="bold",
+    ))
     for cls in report["classes"]:
-        branch = root.add(Text(f"{cls['name']}  [{counts_label(cls['counts'], compact=True)}]", style="cyan"))
+        class_status = "unported · " if cls["port_status"] == "unported" else ""
+        style = "yellow" if cls["port_status"] == "unported" else "cyan"
+        branch = root.add(Text(f"{cls['name']}  [{class_status}{counts_label(cls['counts'], compact=True)}]", style=style))
         for test in cls["tests"]:
             label = f"{STATUS_SYMBOL[test['status']]} {test['name']}  {test['status']}"
             if test["reason"]:
@@ -74,7 +80,7 @@ def terminal_tree(report: dict[str, object]):
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     files = sorted(PORTS.glob("*.lua"))
-    report = build_report(files, ROOT, KOTLINX)
+    report = build_report(files, ROOT, KOTLINX, inventory_tag=KOTLIN_TEST_TAG)
 
     if args.json:
         print(json.dumps(report, ensure_ascii=False, indent=2))

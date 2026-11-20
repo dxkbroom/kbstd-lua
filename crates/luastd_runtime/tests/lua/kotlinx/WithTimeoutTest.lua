@@ -153,7 +153,7 @@ describe("WithTimeoutTest", function ()
         end)
     )
 
-    -- n/a: the body cannot catch its cancellation and raise another error
+    -- not-applicable: the body cannot catch its cancellation and raise another error
     -- instead (ADR 0005); `async.finally` keeps the body's error over the
     -- cleanup's, so the TestException never replaces the timeout.
     pending("testSuppressExceptionWithAnotherException")

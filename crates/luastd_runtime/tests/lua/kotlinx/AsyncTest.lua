@@ -93,7 +93,7 @@ describe("AsyncTest", function ()
         end)
     )
 
-    -- n/a: a `catch` around awaiting a failing child cannot recover its scope
+    -- not-applicable: a `catch` around awaiting a failing child cannot recover its scope
     -- in Kotlin either: the child's failure has already cancelled the parent,
     -- so its 42 is lost and `deferred` still fails. luastd raises that
     -- cancellation at the await instead of entering the catch (ADR 0005); to
@@ -210,7 +210,7 @@ describe("AsyncTest", function ()
     -- todo: no `invokeOnCompletion`/`DisposableHandle` or `getCompleted`.
     pending("testIncompleteAsyncState")
 
-    -- n/a: no dispatchers (`Dispatchers.Unconfined`); one LocalSet runs everything.
+    -- not-applicable: no dispatchers (`Dispatchers.Unconfined`); one LocalSet runs everything.
     pending("testIncompleteAsyncFastPath")
 
     -- adapted: `try/finally` is `async.finally`, whose cleanup cannot return a

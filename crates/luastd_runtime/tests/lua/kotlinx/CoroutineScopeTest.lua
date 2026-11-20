@@ -66,14 +66,14 @@ describe("CoroutineScopeTest", function ()
         end)
     )
 
-    -- n/a: cancellation is not catchable at `pcall` boundaries (ADR 0005),
+    -- not-applicable: cancellation is not catchable at `pcall` boundaries (ADR 0005),
     -- so Kotlin's `catch (JobCancellationException)` cannot be ported directly.
     pending("testOuterJobIsCancelled")
 
-    -- n/a: awaiting a failing child in its own cancelled scope raises the
+    -- not-applicable: awaiting a failing child in its own cancelled scope raises the
     -- uncatchable caller cancellation (ADR 0005), before Kotlin's catch.
     pending("testAsyncCancellationFirst")
-    -- n/a: same cancellation behavior as `testAsyncCancellationFirst`.
+    -- not-applicable: same cancellation behavior as `testAsyncCancellationFirst`.
     pending("testAsyncCancellationSecond")
 
     -- adapted: `withContext` is not in luastd; the failing scope body still
@@ -103,15 +103,15 @@ describe("CoroutineScopeTest", function ()
         end)
     )
 
-    -- n/a: same cancellation-before-error difference as ADR 0005 documents;
+    -- not-applicable: same cancellation-before-error difference as ADR 0005 documents;
     -- the Kotlin test catches the later exception after cancelling its job.
     pending("testCoroutineScopeCancellationVsException")
 
-    -- n/a: luastd does not expose CoroutineContext or dispatchers.
+    -- not-applicable: luastd does not expose CoroutineContext or dispatchers.
     pending("testLaunchContainsDefaultDispatcher")
-    -- n/a: no CoroutineContext or dispatcher composition API.
+    -- not-applicable: no CoroutineContext or dispatcher composition API.
     pending("testNewCoroutineContextDispatcher")
-    -- n/a: no CoroutineContext or dispatcher composition API.
+    -- not-applicable: no CoroutineContext or dispatcher composition API.
     pending("testScopePlusContext")
 
     it(
@@ -127,7 +127,7 @@ describe("CoroutineScopeTest", function ()
         end)
     )
 
-    -- n/a: this checks `CoroutineContext.isActive` with no Job; luastd exposes
+    -- not-applicable: this checks `CoroutineContext.isActive` with no Job; luastd exposes
     -- the current scope directly and has no CoroutineContext object.
     pending("testIsActiveWithoutJob")
 end)

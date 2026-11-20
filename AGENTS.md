@@ -118,7 +118,7 @@ so each reads next to its Kotlin source:
   - `it(name, runtest(...))` - ported;
   - the same with a `-- adapted: <why>` comment above - ported with a deliberate
     difference;
-  - `pending(name)` with `-- n/a: <why>` (cannot apply to luastd, e.g. ADR 0005)
+  - `pending(name)` with `-- not-applicable: <why>` (cannot apply to luastd, e.g. ADR 0005)
     or `-- todo: <why>` (needs an API luastd lacks yet) above.
 - Bind `local runtest = luastd_test.runtest` and call `runtest(function (t) ... end)`
   (mirrors `runTest { }`): `t:expect(n)`, `t:finish(n)`, `t:expect_unreached()`;
@@ -127,7 +127,7 @@ so each reads next to its Kotlin source:
   (main-kbroom).
 - Kotlin's `TimeoutCancellationException` is luastd's `Timeout` error kind;
   `TestException`/`1`/`2`/`3` are `luastd_test.TestException()` etc.
-- `mise run test:kotlin` reports ported/adapted/n/a/todo/missing per class;
+- `mise run test:kotlin` reports ported/adapted/not-applicable/todo/missing per class;
   `--check` fails on missing tests or names Kotlin does not have.
 
 ## Dependencies
